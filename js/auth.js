@@ -1,6 +1,6 @@
 /**
  * XTREM MOBILE - Authentication Module
- * Maneja login, registro y gestión de sesión
+ * Maneja login y gestión de sesión
  */
 
 const Auth = {
@@ -28,24 +28,6 @@ const Auth = {
             return { success: true, user };
         }
         return { success: false, message: 'Usuario o contraseña incorrectos' };
-    },
-
-    register(fullName, username, email, password) {
-        // Check if username already exists
-        const existing = DataStore.findUserByUsername(username);
-        if (existing) {
-            return { success: false, message: 'El nombre de usuario ya existe' };
-        }
-
-        const user = DataStore.addUser({
-            fullName,
-            username,
-            email,
-            password,
-            role: 'Vendedor'
-        });
-
-        return { success: true, user };
     },
 
     logout() {

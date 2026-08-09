@@ -877,7 +877,8 @@ if (!localStorage.getItem('xtrem_users')) {
 
     findUser(username, password) {
         const users = this.getUsers();
-        return users.find(u => u.username === username && u.password === password) || null;
+        const normalized = (username || '').trim().toLowerCase();
+        return users.find(u => u.username && u.username.toLowerCase() === normalized && u.password === password) || null;
     },
 
     findUserByUsername(username) {
@@ -991,6 +992,25 @@ if (!localStorage.getItem('xtrem_users')) {
         sales.push(sale);
         this.saveSales(sales);
         return sale;
+    },
+
+    // ===== RETURNS (DEVOLUCIONES) =====
+    getReturns() {
+        const returns = JSON.parse(localStorage.getItem('xtrem_returns')) || [];
+        return returns.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    },
+
+    saveReturns(returns) {
+        localStorage.setItem('xtrem_returns', JSON.stringify(returns));
+    },
+
+    addReturn(entry) {
+        const returns = JSON.parse(localStorage.getItem('xtrem_returns')) || [];
+        entry.id = 'ret_' + Date.now();
+        entry.createdAt = new Date().toISOString();
+        returns.push(entry);
+        this.saveReturns(returns);
+        return entry;
     },
 
     // ===== CATEGORIES =====

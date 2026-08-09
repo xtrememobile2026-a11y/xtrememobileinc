@@ -1,4 +1,4 @@
-/**
+﻿/**
  * XTREM MOBILE - Main Application Controller
  * Maneja la navegación, eventos globales y orquestación
  */
@@ -12,107 +12,20 @@ const App = {
             document.getElementById('loadingScreen').classList.add('hidden');
         }, 800);
 
-        // Check session
-        if (Auth.init()) {
-            this.showMainApp();
+        // This page requires an active session
+        if (!Auth.init()) {
+            window.location.href = 'login.html';
+            return;
         }
 
-// Setup events (but NOT initModules - that's only for main app)
         this.setupAuthEvents();
         this.setupNavigation();
         this.setupClock();
         Tour.init();
+        this.showMainApp();
     },
 
     setupAuthEvents() {
-        // Toggle password visibility
-        document.getElementById('togglePassword').addEventListener('click', () => {
-            const input = document.getElementById('loginPassword');
-            const icon = document.querySelector('#togglePassword i');
-            if (input.type === 'password') {
-                input.type = 'text';
-                icon.classList.replace('bi-eye', 'bi-eye-slash');
-            } else {
-                input.type = 'password';
-                icon.classList.replace('bi-eye-slash', 'bi-eye');
-            }
-        });
-
-        // Switch to register form
-        document.getElementById('showRegister').addEventListener('click', (e) => {
-            e.preventDefault();
-            document.getElementById('loginForm').classList.add('d-none');
-            document.getElementById('registerForm').classList.remove('d-none');
-            document.getElementById('loginError').classList.add('d-none');
-        });
-
-        // Switch to login form
-        document.getElementById('showLogin').addEventListener('click', (e) => {
-            e.preventDefault();
-            document.getElementById('registerForm').classList.add('d-none');
-            document.getElementById('loginForm').classList.remove('d-none');
-            document.getElementById('registerError').classList.add('d-none');
-            document.getElementById('registerSuccess').classList.add('d-none');
-        });
-
-        // Login form submit
-        document.getElementById('loginForm').addEventListener('submit', (e) => {
-            e.preventDefault();
-            const username = document.getElementById('loginUsername').value.trim();
-            const password = document.getElementById('loginPassword').value;
-
-            const result = Auth.login(username, password);
-            if (result.success) {
-                this.showMainApp();
-                this.logHistory('Inicio de sesión', `El usuario "${username}" inició sesión correctamente`);
-            } else {
-                const errorEl = document.getElementById('loginError');
-                errorEl.textContent = result.message;
-                errorEl.classList.remove('d-none');
-            }
-        });
-
-        // Register form submit
-        document.getElementById('registerForm').addEventListener('submit', (e) => {
-            e.preventDefault();
-            const fullName = document.getElementById('regFullName').value.trim();
-            const username = document.getElementById('regUsername').value.trim();
-            const email = document.getElementById('regEmail').value.trim();
-            const password = document.getElementById('regPassword').value;
-            const confirmPass = document.getElementById('regConfirmPass').value;
-
-            // Validation
-            document.getElementById('registerError').classList.add('d-none');
-            document.getElementById('registerSuccess').classList.add('d-none');
-
-            if (password !== confirmPass) {
-                const errorEl = document.getElementById('registerError');
-                errorEl.textContent = 'Las contraseñas no coinciden';
-                errorEl.classList.remove('d-none');
-                return;
-            }
-
-            const result = Auth.register(fullName, username, email, password);
-            if (result.success) {
-                this.logHistory('Registro de usuario', `Se registró el usuario "${fullName}" con usuario "${username}" y correo "${email}"`);
-                const successEl = document.getElementById('registerSuccess');
-                successEl.textContent = 'Registro exitoso. Ahora puedes iniciar sesión.';
-                successEl.classList.remove('d-none');
-                document.getElementById('registerForm').reset();
-                
-                // Switch to login after 2 seconds
-                setTimeout(() => {
-                    document.getElementById('registerForm').classList.add('d-none');
-                    document.getElementById('loginForm').classList.remove('d-none');
-                    document.getElementById('loginUsername').value = username;
-                }, 2000);
-            } else {
-                const errorEl = document.getElementById('registerError');
-                errorEl.textContent = result.message;
-                errorEl.classList.remove('d-none');
-            }
-        });
-
         // Logout
         document.getElementById('logoutBtn').addEventListener('click', (e) => {
             e.preventDefault();
@@ -121,10 +34,7 @@ const App = {
                 this.logHistory('Cierre de sesión', `El usuario "${user.fullName}" cerró sesión`);
             }
             Auth.logout();
-            document.getElementById('mainApp').classList.add('d-none');
-            document.getElementById('loginPage').classList.remove('d-none');
-            document.getElementById('loginForm').reset();
-            document.getElementById('loginError').classList.add('d-none');
+            window.location.href = 'login.html';
         });
 
         // Admin password verification
@@ -192,7 +102,7 @@ navigateTo(page) {
             const user = Auth.getCurrentUser();
             const name = user ? user.fullName : 'usuario';
             const title = page === 'accesorios' ? 'Accesorios' : 'Inventario General';
-            App.showToast(`La sección "${title}" estará disponible próximamente para ${name}. ¡Gracias por tu paciencia!`, 'error');
+            App.showToast(`La sección "${title}" estará disponible próximamente para ${name}. Â¡Gracias por tu paciencia!`, 'error');
             return;
         }
 
@@ -227,6 +137,10 @@ navigateTo(page) {
             this.renderHistoryTable();
         } else if (page === 'inventario') {
             Inventory.renderTable();
+        } else if (page === 'ventas') {
+            Sales.render();
+        } else if (page === 'devoluciones') {
+            Returns.renderTable();
         } else if (page === 'accesorios') {
             Inventory.renderAccesoriesTable();
         } else if (page === 'dashboard') {
@@ -242,6 +156,8 @@ navigateTo(page) {
         const titles = {
             dashboard: 'Dashboard',
             inventario: 'Inventario de Celulares',
+            ventas: 'Ventas',
+            devoluciones: 'Devoluciones',
             accesorios: 'Accesorios',
             'inventario-general': 'Inventario General',
             horarios: 'Horarios de Empleados',
@@ -258,9 +174,6 @@ navigateTo(page) {
             document.getElementById('sidebarUserRole').textContent = user.role;
             document.getElementById('userAvatar').textContent = user.fullName.charAt(0).toUpperCase();
         }
-
-document.getElementById('loginPage').classList.add('d-none');
-        document.getElementById('mainApp').classList.remove('d-none');
 
         // Aplicar permisos del menú según el rol (restricciones para ciertas secciones)
         this.applyMenuPermissions();
@@ -290,6 +203,8 @@ document.getElementById('loginPage').classList.add('d-none');
     initModules() {
         Dashboard.init();
         Inventory.init();
+        Sales.init();
+        Returns.init();
         DataStore.seedAccessoryTemplates();
         Export.init();
         this.setupUsers();
@@ -471,7 +386,7 @@ deleteUser(id) {
             return;
         }
         document.getElementById('deleteModalMessage').textContent = 
-            `¿Estás seguro de eliminar al usuario "${user.fullName}"?`;
+            `Â¿Estás seguro de eliminar al usuario "${user.fullName}"?`;
         document.getElementById('confirmDeleteBtn').onclick = () => {
             // DataStore.deleteUser solo elimina el id exacto y retorna true si lo hizo.
             const deleted = DataStore.deleteUser(id);
@@ -689,7 +604,7 @@ doc.save('inventario-general.pdf');
     deleteSupply(id) {
         const supplies = DataStore.getSupplies();
         const supply = supplies.find(s => s.id === id);
-        document.getElementById('deleteModalMessage').textContent = `¿Estás seguro de eliminar "${supply.name}"?`;
+        document.getElementById('deleteModalMessage').textContent = `Â¿Estás seguro de eliminar "${supply.name}"?`;
         document.getElementById('confirmDeleteBtn').onclick = () => {
             DataStore.deleteSupply(id);
             this.logHistory('Eliminación de suministro', `Se eliminó el suministro "${supply.name}"`);
@@ -884,7 +799,7 @@ doc.save('inventario-general.pdf');
                 html += `<div class="schedule-day-entries">`;
 
                 if (dayEntries.length === 0) {
-                    html += `<small class="text-muted d-block text-center" style="font-size:0.7rem">—</small>`;
+                    html += `<small class="text-muted d-block text-center" style="font-size:0.7rem">â€”</small>`;
                 } else {
                     dayEntries.forEach(s => {
                         const color = employeeColors[s.employeeName] || '#6c757d';
@@ -933,7 +848,7 @@ doc.save('inventario-general.pdf');
 
             html += `<div class="schedule-week-hours-cell">`;
             if (Object.keys(hoursByEmployee).length === 0) {
-                html += `<small class="text-muted d-block text-center" style="font-size:0.7rem">—</small>`;
+                html += `<small class="text-muted d-block text-center" style="font-size:0.7rem">â€”</small>`;
             } else {
                 Object.entries(hoursByEmployee).forEach(([name, hours]) => {
                     const color = employeeColors[name] || '#6c757d';
@@ -1000,7 +915,7 @@ doc.save('inventario-general.pdf');
         const schedule = DataStore.getSchedule();
         const entry = schedule.find(s => s.id === id);
         document.getElementById('deleteModalMessage').textContent = 
-            `¿Estás seguro de eliminar el horario de "${entry.employeeName}" (${entry.date || entry.day})?`;
+            `Â¿Estás seguro de eliminar el horario de "${entry.employeeName}" (${entry.date || entry.day})?`;
         document.getElementById('confirmDeleteBtn').onclick = () => {
             DataStore.deleteScheduleEntry(id);
             this.logHistory('Eliminación de horario', `Se eliminó el horario de "${entry.employeeName}" (${entry.date || entry.day})`);
@@ -1107,3 +1022,4 @@ doc.save('inventario-general.pdf');
 document.addEventListener('DOMContentLoaded', () => {
     App.init();
 });
+
