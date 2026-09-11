@@ -10,32 +10,62 @@ const Tour = {
     steps: [
         {
             target: '#sidebar',
-            title: 'Menú de Navegación',
-            description: 'Este es el menú lateral. Desde aquí puedes moverte entre las secciones del sistema: Dashboard, Inventario, Accesorios, Inventario General, Horarios, Historial y Usuarios.',
+            title: '¡Bienvenido a XTREME MOBILE!',
+            description: 'Este es el menú lateral. Desde aquí te mueves entre todas las secciones del sistema. Vamos a recorrer las más importantes en menos de un minuto.',
             placement: 'right'
+        },
+        {
+            target: '.top-bar',
+            title: 'Barra Superior y Aviso',
+            description: 'Arriba ves la sección en la que estás y la hora actual de Puerto Rico. Justo debajo, el aviso en movimiento te recuerda registrar cada venta para mantener el conteo correcto.',
+            placement: 'bottom'
+        },
+        {
+            target: '.gov-phones-banner',
+            title: 'Meta de Teléfonos del Gobierno',
+            description: 'Este panel muestra cuántos Teléfonos del Gobierno se han entregado este mes, con una meta de 30. Se actualiza solo cada vez que registras una venta de ese tipo.',
+            placement: 'bottom'
         },
         {
             target: '#page-dashboard .stat-card:nth-child(1)',
             title: 'Estadísticas del Dashboard',
-            description: 'Aquí verás los indicadores principales de tu negocio: total de productos, stock disponible, valor total del inventario y categorías registradas.',
-            placement: 'bottom'
-        },
-        {
-            target: '.top-bar',
-            title: 'Barra Superior',
-            description: 'En la barra superior se muestra el título de la sección actual y la fecha/hora en tiempo real de Puerto Rico.',
-            placement: 'bottom'
-        },
-        {
-            target: '#tickerBar',
-            title: 'Aviso en Movimiento',
-            description: 'Este texto se desplaza continuamente. Recuerda: cada vez que vendas algún equipo, regístralo aquí para llevar el conteo correcto.',
+            description: 'Aquí verás los indicadores principales: total de productos, stock disponible, valor total del inventario y categorías registradas.',
             placement: 'bottom'
         },
         {
             target: '.sidebar .nav-link[data-page="inventario"]',
-            title: 'Registro de Ventas e Inventario',
-            description: 'Al hacer clic en "Inventario" podrás agregar, editar y ajustar el stock de cada equipo. Registra cada venta para mantener el conteo correcto.',
+            title: 'Inventario',
+            description: 'Agrega, edita y ajusta el stock de cada equipo. El campo "IVU" es el monto que paga el cliente por sacar el equipo. Si ves el stock en naranja, significa que el producto está a punto de llegar a Stock Bajo.',
+            placement: 'right'
+        },
+        {
+            target: '.sidebar .nav-link[data-page="ventas"]',
+            title: 'Ventas',
+            description: 'Busca y añade productos a un carrito, revisa el historial de ventas por fecha y vendedor, y haz el cuadre de caja (conteo de billetes y monedas) al cierre.',
+            placement: 'right'
+        },
+        {
+            target: '.sidebar .nav-link[data-page="compras"]',
+            title: 'Compras (Nuevo)',
+            description: 'El sistema revisa cada 10 minutos si algún producto se agotó y lo coloca aquí para encargarlo, junto con los productos que están por acabarse. Ideal para saber qué comprar.',
+            placement: 'right'
+        },
+        {
+            target: '.sidebar-user',
+            title: 'Empleado del Mes',
+            description: 'Si eres quien más ha vendido (en Q) este mes, verás una estrella dorada junto a tu nombre aquí y en la lista de Usuarios. ¡Se actualiza automáticamente!',
+            placement: 'right'
+        },
+        {
+            target: '#openProfileBtn',
+            title: 'Mi Perfil',
+            description: 'Presiona este ícono para editar tu nombre, correo o cambiar tu contraseña cuando quieras.',
+            placement: 'right'
+        },
+        {
+            target: '#supportNavBtn',
+            title: 'Soporte Técnico y Actualizaciones',
+            description: 'Aquí encuentras preguntas frecuentes y puedes reportar un problema (por ejemplo, si olvidaste tu contraseña). Un poco más abajo, "Actualizaciones" te muestra las novedades del sistema.',
             placement: 'right'
         }
     ],
@@ -75,7 +105,12 @@ const Tour = {
     },
 
     getTarget(step) {
-        return document.querySelector(step.target);
+        const el = document.querySelector(step.target);
+        if (!el) return null;
+        // Si el elemento (o algún ancestro) está oculto por CSS -por ejemplo, "Compras"
+        // para un usuario sin acceso a esa sección- no se puede resaltar en el tour.
+        if (el.getClientRects().length === 0) return null;
+        return el;
     },
 
     start() {
@@ -88,6 +123,19 @@ const Tour = {
     },
 
     renderStep() {
+        // Salta automáticamente los pasos cuyo elemento esté oculto para este usuario
+        // (por ejemplo, por sus permisos), en vez de terminar el tour de golpe.
+        let guard = 0;
+        while (!this.getTarget(this.steps[this.currentIndex]) && guard < this.steps.length) {
+            if (this.currentIndex < this.steps.length - 1) {
+                this.currentIndex++;
+            } else {
+                this.end();
+                return;
+            }
+            guard++;
+        }
+
         const step = this.steps[this.currentIndex];
         const target = this.getTarget(step);
         if (!target) {

@@ -4,23 +4,82 @@
  */
 
 const DataStore = {
+    // Marca cuándo fue la última vez que se escribió LOCALMENTE cada colección.
+    // Se usa para que una sincronización desde Supabase (que llega un poco más tarde)
+    // no sobrescriba por accidente un cambio recién hecho aquí mismo mientras todavía
+    // está subiendo (ver isRecentlyWritten en supabase-service.js).
+    _recentWrites: {},
+
+    markRecentWrite(key) {
+        this._recentWrites[key] = Date.now();
+    },
+
+    isRecentlyWritten(key, graceMs = 15000) {
+        const t = this._recentWrites[key];
+        return !!t && (Date.now() - t) < graceMs;
+    },
+
     // ===== DEFAULT DATA =====
-    init() {
-if (!localStorage.getItem('xtrem_users')) {
+    async init() {
+        const hasSupabaseConfig = typeof SUPABASE_CONFIG !== 'undefined' && 
+                                  SUPABASE_CONFIG.url && 
+                                  SUPABASE_CONFIG.url !== 'TU_SUPABASE_URL_AQUI';
+        
+        if (hasSupabaseConfig && typeof SupabaseService !== 'undefined') {
+            await SupabaseService.init();
+            if (SupabaseService.isConnected()) {
+                console.log('DataStore sincronizado con Supabase');
+                await this.ensureAngelUser();
+            }
+            console.log('DataStore esperando sincronización con Supabase');
+            this.ensureCashCountsStore();
+            await this.ensureRolesSeeded();
+            return;
+        }
+        
+        console.log('DataStore usando localStorage');
+        
+        if (!localStorage.getItem('xtrem_users')) {
             const defaultUsers = [
-{
+                {
+                    id: 'usr_001',
+                    fullName: 'Jessenia',
+                    username: 'Jessenia',
+                    password: 'admin123',
+                    email: 'admin@xtremmobile.com',
+                    role: 'Administrador',
+                    createdAt: '2026-07-30T17:01:44.011Z'
+                },
+                {
+                    id: 'usr_1785440210347',
+                    fullName: 'ZORIMAR ORTIZ OTERO',
+                    username: 'Zory',
+                    password: 'zory123',
+                    email: 'zory@xtrememobile.com',
+                    role: 'Vendedor',
+                    createdAt: '2026-07-30T19:36:50.347Z'
+                },
+                {
+                    id: 'usr_1785445587996',
+                    fullName: 'Chetzaly',
+                    username: 'Cheche',
+                    password: 'che123',
+                    email: 'chetaly@xtrememobile.com',
+                    role: 'Inventario',
+                    createdAt: '2026-07-30T21:06:27.996Z'
+                },
+                {
                     id: 'usr_angel',
                     fullName: 'ANGEL A. COLON NEGRON',
                     username: 'Angel',
-                    password: 'angel123',
+                    password: 'AXtreme2026@',
                     email: 'angel@xtremmobile.com',
                     role: 'Administrador de programación',
-                    createdAt: new Date().toISOString()
+                    createdAt: '2026-08-08T20:53:29.633Z'
                 }
             ];
             localStorage.setItem('xtrem_users', JSON.stringify(defaultUsers));
         } else {
-            // Ensure Angel super admin exists even if users already existed
             this.ensureAngelUser();
         }
 
@@ -823,11 +882,11 @@ if (!localStorage.getItem('xtrem_users')) {
 
         if (!localStorage.getItem('xtrem_schedule')) {
             const defaultSchedule = [
-                { id: 'sch_001', employeeName: 'Juan Pérez', day: 'Lunes', startTime: '08:00', endTime: '17:00', role: 'Vendedor', notes: '' },
+                { id: 'sch_001', employeeName: 'Juan Pérez', day: 'Lunes', startTime: '08:00', endTime: '18:00', role: 'Vendedor', notes: '' },
                 { id: 'sch_002', employeeName: 'María López', day: 'Lunes', startTime: '09:00', endTime: '18:00', role: 'Vendedor', notes: '' },
-                { id: 'sch_003', employeeName: 'Carlos García', day: 'Martes', startTime: '08:00', endTime: '17:00', role: 'Técnico', notes: '' },
-                { id: 'sch_004', employeeName: 'Ana Martínez', day: 'Miércoles', startTime: '10:00', endTime: '19:00', role: 'Vendedor', notes: '' },
-                { id: 'sch_005', employeeName: 'Luis Rodríguez', day: 'Jueves', startTime: '08:00', endTime: '17:00', role: 'Inventario', notes: '' },
+                { id: 'sch_003', employeeName: 'Carlos García', day: 'Martes', startTime: '08:00', endTime: '18:00', role: 'Técnico', notes: '' },
+                { id: 'sch_004', employeeName: 'Ana Martínez', day: 'Miércoles', startTime: '10:00', endTime: '18:00', role: 'Vendedor', notes: '' },
+                { id: 'sch_005', employeeName: 'Luis Rodríguez', day: 'Jueves', startTime: '08:00', endTime: '18:00', role: 'Inventario', notes: '' },
                 { id: 'sch_006', employeeName: 'Sofía Ramírez', day: 'Viernes', startTime: '09:00', endTime: '18:00', role: 'Vendedor', notes: '' }
             ];
             localStorage.setItem('xtrem_schedule', JSON.stringify(defaultSchedule));
@@ -837,6 +896,201 @@ if (!localStorage.getItem('xtrem_users')) {
             const defaultHistory = [];
             localStorage.setItem('xtrem_history', JSON.stringify(defaultHistory));
         }
+
+        this.ensureCashCountsStore();
+        await this.ensureRolesSeeded();
+    },
+
+    // ===== ROLES / PERMISOS =====
+    ensureCashCountsStore() {
+        if (!localStorage.getItem('xtrem_cash_counts')) {
+            localStorage.setItem('xtrem_cash_counts', JSON.stringify([]));
+        }
+        if (!localStorage.getItem('xtrem_purchase_requests')) {
+            localStorage.setItem('xtrem_purchase_requests', JSON.stringify([]));
+        }
+    },
+
+    // Siembra los roles por defecto (si no existen) y migra usuarios viejos que
+    // todavía no tienen `roleId` asignado, mapeándolos por el nombre de su `role` actual.
+    async ensureRolesSeeded() {
+        const defaults = (typeof Permissions !== 'undefined' ? Permissions.DEFAULT_ROLES : []) || [];
+        let roles = this.getRoles();
+
+        let rolesChanged = false;
+        if (!roles || roles.length === 0) {
+            roles = defaults.map(r => ({ ...r, areas: { ...r.areas }, capabilities: { ...r.capabilities } }));
+            rolesChanged = true;
+        } else {
+            defaults.forEach(def => {
+                if (!roles.find(r => r.id === def.id)) {
+                    roles.push({ ...def, areas: { ...def.areas }, capabilities: { ...def.capabilities } });
+                    rolesChanged = true;
+                }
+            });
+        }
+
+        // Repara roles ya guardados a los que les falten áreas o permisos agregados en
+        // versiones más nuevas del sistema (por ejemplo, la sección "Compras"), para que
+        // ningún usuario quede bloqueado por accidente al agregar una función nueva.
+        const areaKeys = (typeof Permissions !== 'undefined' ? Permissions.AREA_KEYS : []) || [];
+        const capKeys = (typeof Permissions !== 'undefined' ? Permissions.CAPABILITY_KEYS : []) || [];
+        roles.forEach(role => {
+            role.areas = role.areas || {};
+            role.capabilities = role.capabilities || {};
+            const defMatch = defaults.find(d => d.id === role.id);
+            areaKeys.forEach(key => {
+                if (role.areas[key] === undefined) {
+                    role.areas[key] = defMatch ? (defMatch.areas[key] || 'none') : 'none';
+                    rolesChanged = true;
+                }
+            });
+            capKeys.forEach(key => {
+                if (role.capabilities[key] === undefined) {
+                    role.capabilities[key] = defMatch ? !!defMatch.capabilities[key] : false;
+                    rolesChanged = true;
+                }
+            });
+        });
+
+        if (rolesChanged) await this.saveRoles(roles);
+
+        const users = this.getUsers();
+        const nameToId = {};
+        roles.forEach(r => { nameToId[(r.name || '').toLowerCase()] = r.id; });
+        let usersChanged = false;
+        users.forEach(u => {
+            if (!u.roleId) {
+                u.roleId = nameToId[(u.role || '').toLowerCase()] || 'role_vendedor';
+                usersChanged = true;
+            }
+        });
+        if (usersChanged) await this.saveUsers(users);
+    },
+
+    getRoles() {
+        return JSON.parse(localStorage.getItem('xtrem_roles')) || [];
+    },
+
+    async saveRoles(roles) {
+        localStorage.setItem('xtrem_roles', JSON.stringify(roles));
+        this.markRecentWrite('xtrem_roles');
+        await this._syncToSupabase('saveRoles', roles);
+    },
+
+    async addRole(role) {
+        const roles = this.getRoles();
+        role.id = role.id || 'role_' + Date.now();
+        role.isSystem = false;
+        role.deletable = true;
+        roles.push(role);
+        await this.saveRoles(roles);
+        return role;
+    },
+
+    async updateRole(id, updatedData) {
+        const roles = this.getRoles();
+        const index = roles.findIndex(r => r.id === id);
+        if (index !== -1) {
+            roles[index] = { ...roles[index], ...updatedData };
+            await this.saveRoles(roles);
+            return roles[index];
+        }
+        return null;
+    },
+
+    async deleteRole(id) {
+        const roles = this.getRoles();
+        const role = roles.find(r => r.id === id);
+        if (!role || role.isSystem) return false;
+
+        // Reasignar usuarios que tenían este rol al rol "Vendedor"
+        const users = this.getUsers();
+        let usersChanged = false;
+        users.forEach(u => {
+            if (u.roleId === id) {
+                u.roleId = 'role_vendedor';
+                u.role = 'Vendedor';
+                usersChanged = true;
+            }
+        });
+        if (usersChanged) await this.saveUsers(users);
+
+        const filtered = roles.filter(r => r.id !== id);
+        await this.saveRoles(filtered);
+        await this._syncToSupabase('deleteRole', id);
+        return true;
+    },
+
+    // ===== COMPRAS (solicitudes de reabastecimiento) =====
+    getPurchaseRequests() {
+        return JSON.parse(localStorage.getItem('xtrem_purchase_requests')) || [];
+    },
+
+    async savePurchaseRequests(list) {
+        localStorage.setItem('xtrem_purchase_requests', JSON.stringify(list));
+        await this._syncToSupabase('savePurchaseRequests', list);
+    },
+
+    async addPurchaseRequest(entry) {
+        const list = this.getPurchaseRequests();
+        entry.id = 'pur_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+        entry.createdAt = new Date().toISOString();
+        list.push(entry);
+        await this.savePurchaseRequests(list);
+        return entry;
+    },
+
+    async updatePurchaseRequest(id, updatedData) {
+        const list = this.getPurchaseRequests();
+        const index = list.findIndex(p => p.id === id);
+        if (index !== -1) {
+            list[index] = { ...list[index], ...updatedData };
+            await this.savePurchaseRequests(list);
+            return list[index];
+        }
+        return null;
+    },
+
+    async deletePurchaseRequest(id) {
+        const list = this.getPurchaseRequests().filter(p => p.id !== id);
+        await this.savePurchaseRequests(list);
+        await this._syncToSupabase('deletePurchaseRequestRemote', id);
+    },
+
+    // ===== CUADRE DE CAJA =====
+    getCashCounts() {
+        return JSON.parse(localStorage.getItem('xtrem_cash_counts')) || [];
+    },
+
+    saveCashCounts(list) {
+        localStorage.setItem('xtrem_cash_counts', JSON.stringify(list));
+    },
+
+    async addCashCount(entry) {
+        const list = this.getCashCounts();
+        entry.id = 'cnt_' + Date.now();
+        entry.createdAt = new Date().toISOString();
+        list.push(entry);
+        this.saveCashCounts(list);
+        await this._syncToSupabase('addCashCount', entry);
+        return entry;
+    },
+
+    async _syncToSupabase(methodName, ...args) {
+        if (typeof SupabaseService !== 'undefined' && SupabaseService.isConnected()) {
+            try {
+                const method = SupabaseService[methodName];
+                if (typeof method === 'function') {
+                    const convertedArgs = args.map(arg =>
+                        (arg && typeof arg === 'object' && !Array.isArray(arg)) ? camelToSnake(arg) : arg
+                    );
+                    return await method.call(SupabaseService, ...convertedArgs, true);
+                }
+            } catch (e) {
+                console.error(`Supabase ${methodName} failed:`, e);
+            }
+        }
     },
 
 // ===== USERS =====
@@ -844,41 +1098,42 @@ if (!localStorage.getItem('xtrem_users')) {
         return JSON.parse(localStorage.getItem('xtrem_users')) || [];
     },
 
-    saveUsers(users) {
+    async saveUsers(users) {
         localStorage.setItem('xtrem_users', JSON.stringify(users));
+        this.markRecentWrite('xtrem_users');
     },
 
 // Asegura que el usuario superadministrador "Angel" exista siempre.
     // No es destructivo: NO elimina a otros usuarios. Solo garantiza que Angel
     // esté presente con el rol correcto de "Administrador de programación".
-    ensureAngelUser() {
+    async ensureAngelUser() {
         let users = this.getUsers();
-        // Buscar a Angel por su id (más robusto) o por username (insensible a mayúsculas)
         let angelExists = users.find(u => u.id === 'usr_angel') || users.find(u => u.username && u.username.toLowerCase() === 'angel');
         if (!angelExists) {
             users.push({
                 id: 'usr_angel',
                 fullName: 'ANGEL A. COLON NEGRON',
                 username: 'Angel',
-                password: 'angel123',
+                password: 'AXtreme2026@',
                 email: 'angel@xtremmobile.com',
                 role: 'Administrador de programación',
                 createdAt: new Date().toISOString()
             });
-        } else if (angelExists.role !== 'Administrador de programación') {
-            // Asegurar que Angel siempre tenga el rol de superadministrador
+        } else {
             angelExists.role = 'Administrador de programación';
             angelExists.fullName = 'ANGEL A. COLON NEGRON';
             angelExists.username = 'Angel';
+            if (angelExists.password !== 'AXtreme2026@') {
+                angelExists.password = 'AXtreme2026@';
+            }
         }
 
-        this.saveUsers(users);
+        await this.saveUsers(users);
     },
 
     findUser(username, password) {
         const users = this.getUsers();
-        const normalized = (username || '').trim().toLowerCase();
-        return users.find(u => u.username && u.username.toLowerCase() === normalized && u.password === password) || null;
+        return users.find(u => u.username && u.username.toLowerCase() === username.toLowerCase() && u.password === password) || null;
     },
 
     findUserByUsername(username) {
@@ -886,38 +1141,38 @@ if (!localStorage.getItem('xtrem_users')) {
         return users.find(u => u.username === username) || null;
     },
 
-    addUser(user) {
+    async addUser(user) {
         const users = this.getUsers();
         user.id = 'usr_' + Date.now();
         user.createdAt = new Date().toISOString();
         users.push(user);
-        this.saveUsers(users);
+        await this.saveUsers(users);
+        await this._syncToSupabase('addUser', user);
         return user;
     },
 
-    updateUser(id, updatedData) {
+    async updateUser(id, updatedData) {
         const users = this.getUsers();
         const index = users.findIndex(u => u.id === id);
         if (index !== -1) {
             users[index] = { ...users[index], ...updatedData };
-            this.saveUsers(users);
+            await this.saveUsers(users);
+            await this._syncToSupabase('updateUser', id, updatedData);
             return users[index];
         }
         return null;
     },
 
-    deleteUser(id) {
-        // Evita eliminar al superadministrador (Angel) por seguridad.
+    async deleteUser(id) {
         if (id === 'usr_angel') {
             return false;
         }
         let users = this.getUsers();
-        // Elimina únicamente el usuario cuyo id coincide exactamente.
-        // Se guarda el nuevo arreglo SOLO si realmente eliminó un usuario.
         const before = users.length;
         users = users.filter(u => u.id !== id);
         if (users.length !== before) {
-            this.saveUsers(users);
+            await this.saveUsers(users);
+            await this._syncToSupabase('deleteUser', id);
             return true;
         }
         return false;
@@ -934,41 +1189,44 @@ if (!localStorage.getItem('xtrem_users')) {
         });
     },
 
-    saveProducts(products) {
+    async saveProducts(products) {
         localStorage.setItem('xtrem_products', JSON.stringify(products));
+        this.markRecentWrite('xtrem_products');
     },
 
-    addProduct(product) {
+    async addProduct(product) {
         const products = JSON.parse(localStorage.getItem('xtrem_products')) || [];
         product.id = 'prod_' + Date.now();
         product.createdAt = new Date().toISOString();
         product.entryDate = product.entryDate || new Date().toISOString().split('T')[0];
         products.push(product);
-        // Insertar en orden alfabético por modelo
         products.sort((a, b) => {
             const modelA = (a.model || '').toLowerCase();
             const modelB = (b.model || '').toLowerCase();
             return modelA.localeCompare(modelB, 'es');
         });
-        this.saveProducts(products);
+        await this.saveProducts(products);
+        await this._syncToSupabase('addProduct', product);
         return product;
     },
 
-    updateProduct(id, updatedData) {
+    async updateProduct(id, updatedData) {
         const products = this.getProducts();
         const index = products.findIndex(p => p.id === id);
         if (index !== -1) {
             products[index] = { ...products[index], ...updatedData };
-            this.saveProducts(products);
+            await this.saveProducts(products);
+            await this._syncToSupabase('updateProduct', id, updatedData);
             return products[index];
         }
         return null;
     },
 
-    deleteProduct(id) {
+    async deleteProduct(id) {
         let products = this.getProducts();
         products = products.filter(p => p.id !== id);
-        this.saveProducts(products);
+        await this.saveProducts(products);
+        await this._syncToSupabase('deleteProduct', id);
     },
 
     getProductById(id) {
@@ -985,32 +1243,14 @@ if (!localStorage.getItem('xtrem_users')) {
         localStorage.setItem('xtrem_sales', JSON.stringify(sales));
     },
 
-    addSale(sale) {
+    async addSale(sale) {
         const sales = this.getSales();
         sale.id = 'sal_' + Date.now();
         sale.createdAt = new Date().toISOString();
         sales.push(sale);
         this.saveSales(sales);
+        await this._syncToSupabase('addSale', sale);
         return sale;
-    },
-
-    // ===== RETURNS (DEVOLUCIONES) =====
-    getReturns() {
-        const returns = JSON.parse(localStorage.getItem('xtrem_returns')) || [];
-        return returns.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    },
-
-    saveReturns(returns) {
-        localStorage.setItem('xtrem_returns', JSON.stringify(returns));
-    },
-
-    addReturn(entry) {
-        const returns = JSON.parse(localStorage.getItem('xtrem_returns')) || [];
-        entry.id = 'ret_' + Date.now();
-        entry.createdAt = new Date().toISOString();
-        returns.push(entry);
-        this.saveReturns(returns);
-        return entry;
     },
 
     // ===== CATEGORIES =====
@@ -1075,35 +1315,39 @@ if (!localStorage.getItem('xtrem_users')) {
         return JSON.parse(localStorage.getItem('xtrem_supplies')) || [];
     },
 
-    saveSupplies(supplies) {
+    async saveSupplies(supplies) {
         localStorage.setItem('xtrem_supplies', JSON.stringify(supplies));
+        this.markRecentWrite('xtrem_supplies');
     },
 
-    addSupply(supply) {
+    async addSupply(supply) {
         const supplies = this.getSupplies();
         supply.id = 'sup_' + Date.now();
         supply.updatedAt = new Date().toISOString();
         supplies.push(supply);
-        this.saveSupplies(supplies);
+        await this.saveSupplies(supplies);
+        await this._syncToSupabase('addSupply', supply);
         return supply;
     },
 
-    updateSupply(id, updatedData) {
+    async updateSupply(id, updatedData) {
         const supplies = this.getSupplies();
         const index = supplies.findIndex(s => s.id === id);
         if (index !== -1) {
             updatedData.updatedAt = new Date().toISOString();
             supplies[index] = { ...supplies[index], ...updatedData };
-            this.saveSupplies(supplies);
+            await this.saveSupplies(supplies);
+            await this._syncToSupabase('updateSupply', id, updatedData);
             return supplies[index];
         }
         return null;
     },
 
-    deleteSupply(id) {
+    async deleteSupply(id) {
         let supplies = this.getSupplies();
         supplies = supplies.filter(s => s.id !== id);
-        this.saveSupplies(supplies);
+        await this.saveSupplies(supplies);
+        await this._syncToSupabase('deleteSupply', id);
     },
 
     // ===== SCHEDULE (Horarios) =====
@@ -1135,7 +1379,7 @@ if (!localStorage.getItem('xtrem_users')) {
         return schedule;
     },
 
-    seedSundayClosures() {
+    async seedSundayClosures() {
         const schedule = this.getSchedule();
         const existingDates = new Set(schedule.map(s => s.date));
         const year = 2026;
@@ -1165,11 +1409,11 @@ if (!localStorage.getItem('xtrem_users')) {
 
         if (sundays.length > 0) {
             schedule.push(...sundays);
-            this.saveSchedule(schedule);
+            await this.saveSchedule(schedule);
         }
     },
 
-    seedAccessoryTemplates() {
+    async seedAccessoryTemplates() {
         const products = this.getProducts();
         const templateIds = new Set(['prod_041','prod_042','prod_043','prod_044','prod_045','prod_046','prod_047','prod_048','prod_049','prod_050','prod_051','prod_052','prod_053','prod_054','prod_055','prod_056']);
         const templates = [
@@ -1213,37 +1457,45 @@ if (!localStorage.getItem('xtrem_users')) {
         products.length = 0;
         products.push(...deduped);
         if (products.length !== originalCount) {
-            this.saveProducts(products);
+            await this.saveProducts(products);
+            const templatesToSave = deduped.filter(p => p.category === 'ACCESORIOS' && templateIds.has(p.id));
+            for (const template of templatesToSave) {
+                await this._syncToSupabase('addProduct', template);
+            }
         }
     },
 
-    saveSchedule(schedule) {
+    async saveSchedule(schedule) {
         localStorage.setItem('xtrem_schedule', JSON.stringify(schedule));
+        this.markRecentWrite('xtrem_schedule');
     },
 
-    addScheduleEntry(entry) {
+    async addScheduleEntry(entry) {
         const schedule = this.getSchedule();
         entry.id = 'sch_' + Date.now();
         schedule.push(entry);
-        this.saveSchedule(schedule);
+        await this.saveSchedule(schedule);
+        await this._syncToSupabase('addScheduleEntry', entry);
         return entry;
     },
 
-    updateScheduleEntry(id, updatedData) {
+    async updateScheduleEntry(id, updatedData) {
         const schedule = this.getSchedule();
         const index = schedule.findIndex(s => s.id === id);
         if (index !== -1) {
             schedule[index] = { ...schedule[index], ...updatedData };
-            this.saveSchedule(schedule);
+            await this.saveSchedule(schedule);
+            await this._syncToSupabase('updateScheduleEntry', id, updatedData);
             return schedule[index];
         }
         return null;
     },
 
-    deleteScheduleEntry(id) {
+    async deleteScheduleEntry(id) {
         let schedule = this.getSchedule();
         schedule = schedule.filter(s => s.id !== id);
-        this.saveSchedule(schedule);
+        await this.saveSchedule(schedule);
+        await this._syncToSupabase('deleteScheduleEntry', id);
     },
 
     // ===== HISTORY (Historial) =====
@@ -1251,23 +1503,28 @@ if (!localStorage.getItem('xtrem_users')) {
         return JSON.parse(localStorage.getItem('xtrem_history')) || [];
     },
 
-    saveHistory(history) {
+    async saveHistory(history) {
         localStorage.setItem('xtrem_history', JSON.stringify(history));
+        this.markRecentWrite('xtrem_history');
     },
 
-    addHistoryEntry(entry) {
+    async addHistoryEntry(entry) {
         const history = this.getHistory();
         entry.id = 'his_' + Date.now();
         entry.createdAt = new Date().toISOString();
         history.push(entry);
-        this.saveHistory(history);
+        await this.saveHistory(history);
+        await this._syncToSupabase('addHistoryEntry', entry);
         return entry;
     },
 
-    clearHistory() {
+    async clearHistory() {
         localStorage.setItem('xtrem_history', JSON.stringify([]));
-    }
+        await this._syncToSupabase('clearHistory');
+    },
 };
 
-// Initialize data store on script load
-DataStore.init();
+// Initialize data store on script load. Se guarda la promesa para que App.init()
+// pueda esperarla antes de restaurar una sesión ya iniciada (evita que el menú
+// aparezca vacío si los roles/permisos todavía no terminaron de sincronizarse).
+DataStore.readyPromise = DataStore.init();

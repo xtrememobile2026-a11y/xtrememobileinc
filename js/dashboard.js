@@ -28,6 +28,62 @@ const Dashboard = {
         // Update tables
         this.updateTopProducts(stats.topProducts);
         this.updateRecentProducts(stats.recentProducts);
+
+        // Meta de Teléfonos del Gobierno
+        this.updateGovPhonesGoal();
+
+        // Notificaciones de stock bajo en el menú lateral
+        if (typeof App !== 'undefined' && App.updateStockAlertBadges) App.updateStockAlertBadges();
+    },
+
+    // Determina si una venta corresponde a un "Teléfono del Gobierno". Las ventas nuevas
+    // guardan la categoría directamente; para ventas antiguas se busca el producto o,
+    // si ya no existe, se revisa el nombre como último respaldo.
+    isGovPhoneSale(sale) {
+        if (sale.category) return sale.category === 'TELEFONOS DEL GOBIERNO';
+        const product = DataStore.getProductById(sale.productId);
+        if (product && product.category) return product.category === 'TELEFONOS DEL GOBIERNO';
+        return (sale.productName || '').toLowerCase().includes('gobierno');
+    },
+
+    updateGovPhonesGoal() {
+        const countEl = document.getElementById('govPhonesCount');
+        if (!countEl) return;
+
+        const GOAL = 30;
+        const sales = DataStore.getSales();
+        const now = new Date();
+        const y = now.getFullYear(), m = now.getMonth();
+
+        let given = 0;
+        sales.forEach(s => {
+            if (!s.createdAt) return;
+            const d = new Date(s.createdAt);
+            if (d.getFullYear() !== y || d.getMonth() !== m) return;
+            if (!this.isGovPhoneSale(s)) return;
+            given += parseInt(s.quantity) || 1;
+        });
+
+        const pct = Math.min(100, Math.round((given / GOAL) * 100));
+        const barEl = document.getElementById('govPhonesProgressBar');
+        const statusEl = document.getElementById('govPhonesStatusText');
+        const monthEl = document.getElementById('govPhonesMonthLabel');
+
+        countEl.textContent = given;
+        barEl.style.width = pct + '%';
+        barEl.setAttribute('aria-valuenow', pct);
+        barEl.classList.toggle('gov-goal-reached', given >= GOAL);
+
+        const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+        monthEl.textContent = monthNames[m] + ' ' + y;
+
+        if (given === 0) {
+            statusEl.innerHTML = 'Aún no se ha registrado ninguno este mes';
+        } else if (given >= GOAL) {
+            statusEl.innerHTML = '<i class="bi bi-trophy-fill me-1"></i>¡Meta alcanzada este mes!';
+        } else {
+            statusEl.textContent = `Faltan ${GOAL - given} para llegar a la meta de ${GOAL}`;
+        }
     },
 
     updateCategoryChart(stats) {

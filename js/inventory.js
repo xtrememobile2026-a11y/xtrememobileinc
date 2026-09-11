@@ -20,16 +20,17 @@ const Inventory = {
     },
 
     applyRolePermissions() {
-        const user = Auth.getCurrentUser();
         const addBtn = document.getElementById('addProductBtn');
-        const isInventario = user && user.role === 'Inventario';
+        const canEditInventory = Auth.can('editInventory');
 
-        // Inventario cannot add new products
-        if (isInventario) {
-            addBtn.style.display = 'none';
-        } else {
-            addBtn.style.display = '';
-        }
+        // Usuarios sin el permiso "editInventory" no pueden agregar productos
+        addBtn.style.display = canEditInventory ? '' : 'none';
+
+        // Mostrar/ocultar la columna de Costo según el permiso "viewCost"
+        const canViewCost = Auth.can('viewCost');
+        document.querySelectorAll('.cost-col').forEach(el => el.classList.toggle('d-none', !canViewCost));
+        const costWrapper = document.getElementById('productCostWrapper');
+        if (costWrapper) costWrapper.classList.toggle('d-none', !canViewCost);
     },
 
     loadCategories() {
@@ -95,9 +96,8 @@ const Inventory = {
             if (p.category === 'ACCESORIOS') return false;
 
             if (search) {
-                const matchSearch = 
+                const matchSearch =
                     (p.model && p.model.toLowerCase().includes(search)) ||
-                    (p.imei && p.imei.toLowerCase().includes(search)) ||
                     (p.color && p.color.toLowerCase().includes(search)) ||
                     (p.category && p.category.toLowerCase().includes(search));
                 if (!matchSearch) return false;
@@ -120,19 +120,20 @@ const Inventory = {
         const startIndex = (this.currentPage - 1) * this.pageSize;
         const pageProducts = this.filteredProducts.slice(startIndex, startIndex + this.pageSize);
 
-        const isInventario = Auth.getCurrentUser() && Auth.getCurrentUser().role === 'Inventario';
+        const canEditInventory = Auth.can('editInventory');
+        const canViewCost = Auth.can('viewCost');
 
         if (pageProducts.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="11" class="text-center text-muted py-5">
+            tbody.innerHTML = `<tr><td colspan="13" class="text-center text-muted py-5">
                 <i class="bi bi-inbox fs-1 d-block mb-2"></i>
                 ${this.filteredProducts.length === 0 ? 'No hay productos registrados' : 'No se encontraron resultados'}
             </td></tr>`;
         } else {
             tbody.innerHTML = pageProducts.map((p, idx) => {
-                // For Inventario: show only stock adjust button
-                // For Vendedor/Admin: show edit and delete buttons
+                // Usuarios sin permiso de edición: solo pueden ajustar stock (+/-)
+                // Usuarios con permiso de edición: pueden editar y eliminar
                 let actionsHtml = '';
-                if (isInventario) {
+                if (!canEditInventory) {
                     actionsHtml = `
                         <button class="action-btn bg-success bg-opacity-10 text-success" onclick="Inventory.openStockModal('${p.id}')" title="Ajustar Stock">
                             <i class="bi bi-box-seam"></i>
@@ -151,15 +152,18 @@ const Inventory = {
                     `;
                 }
 
+                const costCell = `<td class="cost-col ${canViewCost ? '' : 'd-none'}">${parseFloat(p.cost) > 0 ? 'Q' + parseFloat(p.cost).toFixed(2) : '-'}</td>`;
+
                 return `
                 <tr>
                     <td class="fw-bold">${startIndex + idx + 1}</td>
                     <td><span class="fw-semibold">${this.escapeHtml(p.model)}</span></td>
                     <td><span class="badge bg-danger bg-opacity-10 text-danger">${this.escapeHtml(p.category)}</span></td>
-                    <td><code class="small">${this.escapeHtml(p.imei || '-')}</code></td>
+                    <td>${parseFloat(p.imei) > 0 ? 'Q' + parseFloat(p.imei).toFixed(2) : '-'}</td>
                     <td>${this.escapeHtml(p.color || '-')}</td>
                     <td>${p.storage || '-'}</td>
                     <td class="fw-semibold">${parseFloat(p.price) > 0 ? 'Q' + parseFloat(p.price).toFixed(2) : '<span class="text-success">Gratis</span>'}</td>
+                    ${costCell}
 <td><span class="badge ${this.getStockColor(p.stock, p.minStock)}">${parseInt(p.stock)}</span></td>
                     <td><span class="badge bg-secondary">${parseInt(p.minStock || 0)}</span></td>
                     <td>${this.getStatusBadge(p.status)}</td>
@@ -224,7 +228,8 @@ const Inventory = {
         document.getElementById('productForm').reset();
         document.getElementById('productId').value = '';
         document.getElementById('productDate').value = new Date().toISOString().split('T')[0];
-        
+        document.getElementById('productCostWrapper').classList.toggle('d-none', !Auth.can('viewCost'));
+
         const modal = new bootstrap.Modal(document.getElementById('productModal'));
         modal.show();
     },
@@ -241,25 +246,30 @@ const Inventory = {
         document.getElementById('productColor').value = product.color || '';
         document.getElementById('productStorage').value = product.storage || '';
         document.getElementById('productPrice').value = product.price || '';
+        document.getElementById('productCost').value = product.cost || '';
         document.getElementById('productStock').value = product.stock || '';
         document.getElementById('productMinStock').value = product.minStock || '';
         document.getElementById('productStatus').value = product.status || 'Nuevo';
         document.getElementById('productDate').value = product.entryDate || '';
+        document.getElementById('productCostWrapper').classList.toggle('d-none', !Auth.can('viewCost'));
 
         const modal = new bootstrap.Modal(document.getElementById('productModal'));
         modal.show();
     },
 
-    saveProduct() {
+    async saveProduct() {
         const id = document.getElementById('productId').value;
         const priceVal = parseFloat(document.getElementById('productPrice').value);
+        const costVal = parseFloat(document.getElementById('productCost').value);
+        const ivuVal = parseFloat(document.getElementById('productImei').value);
         const stockVal = parseInt(document.getElementById('productStock').value);
         const minStockVal = parseInt(document.getElementById('productMinStock').value);
-        
+
         const data = {
             category: document.getElementById('productCategory').value,
             model: document.getElementById('productModel').value.trim(),
-            imei: document.getElementById('productImei').value.trim(),
+            // Campo interno "imei"; en la interfaz se muestra como "IVU" (monto en Q que paga el cliente por el equipo)
+            imei: isNaN(ivuVal) || ivuVal < 0 ? 0 : ivuVal,
             color: document.getElementById('productColor').value.trim(),
             storage: document.getElementById('productStorage').value,
             price: isNaN(priceVal) ? 0 : priceVal,
@@ -269,7 +279,10 @@ const Inventory = {
             entryDate: document.getElementById('productDate').value
         };
 
-        // Validation mejorada
+        if (Auth.can('viewCost')) {
+            data.cost = isNaN(costVal) || costVal < 0 ? 0 : costVal;
+        }
+
         if (!data.category) {
             App.showToast('Por favor seleccione una Categoría', 'error');
             document.getElementById('productCategory').focus();
@@ -288,22 +301,20 @@ const Inventory = {
 
         try {
             if (id) {
-                // Update
-                DataStore.updateProduct(id, data);
-                App.logHistory('Edición de producto', `Se editó el producto "${data.model}" (categoría: ${data.category}, precio: Q${data.price}, stock: ${data.stock})`);
+                await DataStore.updateProduct(id, data);
+                await App.logHistory('Edición de producto', `Se editó el producto "${data.model}" (categoría: ${data.category}, precio: Q${data.price}, stock: ${data.stock})`);
                 App.showToast('Producto actualizado exitosamente', 'success');
             } else {
-                // Create
-                DataStore.addProduct(data);
-                App.logHistory('Nuevo producto', `Se agregó el producto "${data.model}" (categoría: ${data.category}, precio: Q${data.price}, stock: ${data.stock})`);
+                await DataStore.addProduct(data);
+                await App.logHistory('Nuevo producto', `Se agregó el producto "${data.model}" (categoría: ${data.category}, precio: Q${data.price}, stock: ${data.stock})`);
                 App.showToast('Producto agregado exitosamente', 'success');
             }
 
-            // Close modal and refresh
             const modal = bootstrap.Modal.getInstance(document.getElementById('productModal'));
             if (modal) modal.hide();
             this.renderTable();
             Dashboard.update();
+            if (typeof Purchases !== 'undefined') Purchases.scan();
         } catch (e) {
             console.error('Error al guardar producto:', e);
             App.showToast('Error al guardar el producto. Intente de nuevo.', 'error');
@@ -319,15 +330,16 @@ const Inventory = {
         modal.show();
     },
 
-    deleteProduct(id) {
+    async deleteProduct(id) {
         const product = DataStore.getProductById(id);
-        DataStore.deleteProduct(id);
+        await DataStore.deleteProduct(id);
         const modal = bootstrap.Modal.getInstance(document.getElementById('deleteModal'));
         modal.hide();
-        App.logHistory('Eliminación de producto', `Se eliminó el producto "${product.model}" (IMEI: ${product.imei || 'N/A'})`);
+        await App.logHistory('Eliminación de producto', `Se eliminó el producto "${product.model}" (IVU: Q${(parseFloat(product.imei) || 0).toFixed(2)})`);
         App.showToast('Producto eliminado exitosamente', 'success');
         this.renderTable();
         Dashboard.update();
+        if (typeof Purchases !== 'undefined') Purchases.scan();
     },
 
     // ===== STOCK ADJUSTMENT =====
@@ -346,7 +358,7 @@ const Inventory = {
         modal.show();
     },
 
-    adjustStock(direction) {
+    async adjustStock(direction) {
         const id = document.getElementById('stockProductId').value;
         const quantity = parseInt(document.getElementById('stockQuantity').value) || 1;
         const errorEl = document.getElementById('stockError');
@@ -357,7 +369,6 @@ const Inventory = {
         let currentStock = parseInt(product.stock) || 0;
         
         if (direction === -1) {
-            // Remove stock
             if (quantity > currentStock) {
                 errorEl.textContent = 'No puedes quitar más stock del disponible. Stock actual: ' + currentStock;
                 errorEl.classList.remove('d-none');
@@ -365,22 +376,20 @@ const Inventory = {
             }
             currentStock -= quantity;
         } else {
-            // Add stock
             currentStock += quantity;
         }
 
         errorEl.classList.add('d-none');
-        DataStore.updateProduct(id, { stock: currentStock });
+        await DataStore.updateProduct(id, { stock: currentStock });
 
-        // Update current stock display
         document.getElementById('stockCurrentValue').textContent = currentStock;
 
-        // Refresh table and dashboard
         this.renderTable();
         Dashboard.update();
+        if (typeof Purchases !== 'undefined') Purchases.scan();
 
         const action = direction === -1 ? 'quitado' : 'agregado';
-        App.logHistory('Ajuste de stock', `Se ${action} ${quantity} unidad(es) de "${product.model}". Stock actual: ${currentStock}`);
+        await App.logHistory('Ajuste de stock', `Se ${action} ${quantity} unidad(es) de "${product.model}". Stock actual: ${currentStock}`);
         App.showToast(`Stock ${action}: ${quantity} unidad(es). Stock actual: ${currentStock}`, 'success');
     },
 
@@ -400,8 +409,8 @@ getStatusBadge(status) {
         const m = parseInt(minStock) || 0;
         if (s <= 0) return 'bg-danger';                               // Sin stock
         if (m <= 0) return 'bg-success';                             // Sin mínimo definido -> OK
-        if (s <= m) return 'bg-danger';                              // Por debajo/igual al mínimo
-        if (s <= m * 1.5) return 'bg-warning text-dark';             // Cerca del mínimo
+        if (s <= m) return 'bg-danger';                              // Por debajo/igual al mínimo (Stock Bajo)
+        if (s <= m * 1.5) return 'badge-stock-medium';               // Cerca de llegar a Stock Bajo -> Naranja
         return 'bg-success';                                         // Stock suficiente
     },
 
@@ -544,7 +553,7 @@ document.getElementById('accName').value = product ? product.model : '';
         modal.show();
     },
 
-    saveAccesory() {
+    async saveAccesory() {
         const id = document.getElementById('accId').value;
         const name = document.getElementById('accName').value.trim();
         const type = document.getElementById('accType').value;
@@ -570,32 +579,36 @@ document.getElementById('accName').value = product ? product.model : '';
         };
 
         if (id) {
-            DataStore.updateProduct(id, data);
-            App.logHistory('Edición de accesorio', `Se editó el accesorio "${name}"`);
+            await DataStore.updateProduct(id, data);
+            await App.logHistory('Edición de accesorio', `Se editó el accesorio "${name}"`);
             App.showToast('Accesorio actualizado exitosamente', 'success');
         } else {
-            DataStore.addProduct(data);
-            App.logHistory('Nuevo accesorio', `Se agregó el accesorio "${name}"`);
+            await DataStore.addProduct(data);
+            await App.logHistory('Nuevo accesorio', `Se agregó el accesorio "${name}"`);
             App.showToast('Accesorio agregado exitosamente', 'success');
         }
 
         const modal = bootstrap.Modal.getInstance(document.getElementById('accesoryModal'));
         if (modal) modal.hide();
         this.renderAccesoriesTable();
+        if (typeof App !== 'undefined' && App.updateStockAlertBadges) App.updateStockAlertBadges();
+        if (typeof Purchases !== 'undefined') Purchases.scan();
     },
 
     confirmDeleteAccesory(id) {
         const product = DataStore.getProductById(id);
         document.getElementById('deleteModalMessage').textContent = `¿Estás seguro de eliminar el accesorio "${product.model}"?`;
-        document.getElementById('confirmDeleteBtn').onclick = () => {
-            DataStore.deleteProduct(id);
-            App.logHistory('Eliminación de accesorio', `Se eliminó el accesorio "${product.model}"`);
+        document.getElementById('confirmDeleteBtn').onclick = async () => {
+            await DataStore.deleteProduct(id);
+            await App.logHistory('Eliminación de accesorio', `Se eliminó el accesorio "${product.model}"`);
             const modal = bootstrap.Modal.getInstance(document.getElementById('deleteModal'));
             modal.hide();
             App.showToast('Accesorio eliminado exitosamente', 'success');
             this.renderAccesoriesTable();
+            if (typeof App !== 'undefined' && App.updateStockAlertBadges) App.updateStockAlertBadges();
+            if (typeof Purchases !== 'undefined') Purchases.scan();
         };
-const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
+        const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
         modal.show();
     }
 };

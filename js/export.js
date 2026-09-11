@@ -76,7 +76,7 @@ const Export = {
             idx + 1,
             p.model || '-',
             p.category || '-',
-            p.imei || '-',
+            parseFloat(p.imei) > 0 ? 'Q' + parseFloat(p.imei).toFixed(2) : '-',
             p.color || '-',
             p.storage || '-',
             'Q' + parseFloat(p.price).toFixed(2),
@@ -87,7 +87,7 @@ const Export = {
 
         doc.autoTable({
             startY: yPos,
-            head: [['#', 'Modelo', 'Categoria', 'IMEI', 'Color', 'Almac.', 'Precio', 'Stock', 'Estado', 'Fecha']],
+            head: [['#', 'Modelo', 'Categoria', 'IVU (Q)', 'Color', 'Almac.', 'Precio', 'Stock', 'Estado', 'Fecha']],
             body: tableData,
             theme: 'grid',
             headStyles: {
@@ -325,6 +325,51 @@ const Receipt = {
                 ${this.buildHeader(title)}
                 ${this.buildItems(items, 'No hay suministros registrados')}
                 ${this.buildFooter('Total Suministros:', total)}
+            </div>
+        `;
+
+        this.renderAndPrint(html);
+    },
+
+    // ===== IMPRESIÓN DE RECIBO DE VENTA (ticket del carrito de Ventas) =====
+    printSale(ticketId) {
+        const allSales = DataStore.getSales();
+        let lines = allSales.filter(s => s.ticketId && s.ticketId === ticketId);
+        if (lines.length === 0) {
+            // Venta antigua sin ticketId: se busca por el id individual de la venta
+            lines = allSales.filter(s => s.id === ticketId);
+        }
+        if (lines.length === 0) {
+            App.showToast('No se encontró la venta para imprimir', 'error');
+            return;
+        }
+
+        const first = lines[0];
+        const total = lines.reduce((sum, s) => sum + (parseFloat(s.total) || 0), 0);
+
+        const items = lines.map(s => ({
+            qty: parseInt(s.quantity) || 1,
+            name: s.productName || '-',
+            detail: 'Q' + (parseFloat(s.price) || 0).toFixed(2) + ' c/u'
+        }));
+
+        let extra = '';
+        if (first.customer) {
+            extra += `<div class="th-meta">Cliente: ${this.esc(first.customer)}</div>`;
+        }
+        if (first.seller) {
+            extra += `<div class="th-meta">Vendedor: ${this.esc(first.seller)}</div>`;
+        }
+        if (first.receiptNote) {
+            extra += `<div class="th-sep">- - - - - - - - - - - - - - - - - - - - - -</div><div class="th-note">${this.esc(first.receiptNote)}</div>`;
+        }
+
+        const html = `
+            <div class="receipt">
+                ${this.buildHeader('RECIBO DE VENTA')}
+                ${extra}
+                ${this.buildItems(items, 'Sin artículos')}
+                ${this.buildFooter('TOTAL:', 'Q' + total.toFixed(2))}
             </div>
         `;
 

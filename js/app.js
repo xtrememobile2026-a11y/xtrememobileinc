@@ -1,40 +1,82 @@
-﻿/**
+/**
  * XTREM MOBILE - Main Application Controller
  * Maneja la navegación, eventos globales y orquestación
  */
 
+const APP_VERSION = '1.0.0';
+const APP_VERSION_DATE = '2026-09-11';
+
 const App = {
     toastInstance: null,
 
-    init() {
+    async init() {
         // Loading screen
         setTimeout(() => {
             document.getElementById('loadingScreen').classList.add('hidden');
         }, 800);
 
-        // This page requires an active session
-        if (!Auth.init()) {
-            window.location.href = 'login.html';
-            return;
+        // Check session
+        if (Auth.init()) {
+            // Esperar a que DataStore (roles/permisos incluidos) termine de cargar
+            // antes de construir el menú, para no ocultarlo por una carrera con Supabase.
+            if (DataStore.readyPromise) await DataStore.readyPromise;
+            this.showMainApp();
         }
 
+// Setup events (but NOT initModules - that's only for main app)
         this.setupAuthEvents();
         this.setupNavigation();
         this.setupClock();
         Tour.init();
-        this.showMainApp();
     },
 
     setupAuthEvents() {
+        // Toggle password visibility
+        document.getElementById('togglePassword').addEventListener('click', () => {
+            const input = document.getElementById('loginPassword');
+            const icon = document.querySelector('#togglePassword i');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.classList.replace('bi-eye', 'bi-eye-slash');
+            } else {
+                input.type = 'password';
+                icon.classList.replace('bi-eye-slash', 'bi-eye');
+            }
+        });
+
+        // Login form submit
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('loginUsername').value.trim();
+            const password = document.getElementById('loginPassword').value;
+            console.log('Login attempt:', username, password);
+
+            const result = await Auth.login(username, password);
+            console.log('Login result:', result);
+            if (result.success) {
+                this.showMainApp();
+                await this.logHistory('Inicio de sesión', `El usuario "${username}" inició sesión correctamente`);
+            } else {
+                const errorEl = document.getElementById('loginError');
+                errorEl.textContent = result.message;
+                errorEl.classList.remove('d-none');
+            }
+        });
+
         // Logout
-        document.getElementById('logoutBtn').addEventListener('click', (e) => {
+        document.getElementById('logoutBtn').addEventListener('click', async (e) => {
             e.preventDefault();
             const user = Auth.getCurrentUser();
             if (user) {
-                this.logHistory('Cierre de sesión', `El usuario "${user.fullName}" cerró sesión`);
+                await this.logHistory('Cierre de sesión', `El usuario "${user.fullName}" cerró sesión`);
             }
             Auth.logout();
-            window.location.href = 'login.html';
+            // Recargar la página por completo (en vez de solo ocultar/mostrar secciones) para
+            // garantizar que ningún listener de botones quede duplicado si luego alguien inicia
+            // sesión de nuevo en la misma pestaña. Sin esto, cada inicio de sesión repetía la
+            // configuración de TODOS los botones (Completar Venta, Guardar, etc.), causando que
+            // un solo clic disparara la acción varias veces.
+            location.reload();
         });
 
         // Admin password verification
@@ -95,25 +137,17 @@ const App = {
     pendingPage: null,
 
 navigateTo(page) {
-        // Secciones restringidas (Accesorios / Inventario General): solo el superadministrador
-        // (Angel) puede abrirlas. Para el resto, mostrar aviso de "Próximamente".
-        const restrictedPages = ['accesorios', 'inventario-general'];
-        if (restrictedPages.includes(page) && !Auth.canAccessRestricted()) {
-            const user = Auth.getCurrentUser();
-            const name = user ? user.fullName : 'usuario';
-            const title = page === 'accesorios' ? 'Accesorios' : 'Inventario General';
-            App.showToast(`La sección "${title}" estará disponible próximamente para ${name}. Â¡Gracias por tu paciencia!`, 'error');
-            return;
-        }
+        const user = Auth.getCurrentUser();
+        const status = Permissions.getEffectiveAreaStatus(user, page);
 
-        // If trying to access usuarios and not admin, require admin password
-        if (page === 'usuarios' && !Auth.isAdmin()) {
-            this.pendingPage = page;
-            document.getElementById('adminPassMessage').textContent = 'Ingrese la contraseña de administrador para acceder a la sección de Usuarios.';
-            document.getElementById('adminPassError').classList.add('d-none');
-            document.getElementById('adminPassInput').value = '';
-            const modal = new bootstrap.Modal(document.getElementById('adminPassModal'));
-            modal.show();
+        if (status !== 'full') {
+            const name = user ? user.fullName : 'usuario';
+            const title = Permissions.AREA_LABELS[page] || 'Esta sección';
+            if (status === 'soon') {
+                App.showToast(`La sección "${title}" estará disponible próximamente para ${name}. ¡Gracias por tu paciencia!`, 'error');
+            } else {
+                App.showToast(`No tienes acceso a la sección "${title}". Contacta al administrador si crees que esto es un error.`, 'error');
+            }
             return;
         }
 
@@ -131,20 +165,34 @@ navigateTo(page) {
         }
 
         // Refresh data of the page being shown
-        if (page === 'horarios') {
-            this.renderScheduleCalendar();
-        } else if (page === 'historial') {
-            this.renderHistoryTable();
-        } else if (page === 'inventario') {
-            Inventory.renderTable();
-        } else if (page === 'ventas') {
-            Sales.render();
-        } else if (page === 'devoluciones') {
-            Returns.renderTable();
-        } else if (page === 'accesorios') {
-            Inventory.renderAccesoriesTable();
-        } else if (page === 'dashboard') {
-            Dashboard.update();
+        try {
+            if (page === 'horarios') {
+                this.renderScheduleCalendar();
+            } else if (page === 'ventas') {
+                POS.onPageShow();
+            } else if (page === 'historial') {
+                this.renderHistoryTable();
+            } else if (page === 'inventario') {
+                Inventory.renderTable();
+            } else if (page === 'accesorios') {
+                Inventory.renderAccesoriesTable();
+            } else if (page === 'dashboard') {
+                Dashboard.update();
+            } else if (page === 'sql-editor') {
+                this.setupSqlEditor();
+            } else if (page === 'areas-usuarios') {
+                RolesAdmin.onPageShow();
+            } else if (page === 'usuarios') {
+                this.renderUsersTable();
+            } else if (page === 'actualizaciones') {
+                this.renderUpdatesPage();
+            } else if (page === 'compras') {
+                Purchases.onPageShow();
+            } else if (page === 'inventario-general') {
+                this.renderSuppliesTable();
+            }
+        } catch (e) {
+            console.error('Error updating page data:', e);
         }
 
         // Update sidebar active state
@@ -156,13 +204,16 @@ navigateTo(page) {
         const titles = {
             dashboard: 'Dashboard',
             inventario: 'Inventario de Celulares',
-            ventas: 'Ventas',
-            devoluciones: 'Devoluciones',
             accesorios: 'Accesorios',
             'inventario-general': 'Inventario General',
             horarios: 'Horarios de Empleados',
+            ventas: 'Ventas',
             historial: 'Historial de Actividad',
-            usuarios: 'Usuarios del Sistema'
+            usuarios: 'Usuarios del Sistema',
+            'sql-editor': 'Editor SQL',
+            'areas-usuarios': 'Áreas de Usuarios',
+            'actualizaciones': 'Actualizaciones',
+            'compras': 'Compras'
         };
         document.getElementById('pageTitle').textContent = titles[page] || 'Dashboard';
     },
@@ -170,48 +221,96 @@ navigateTo(page) {
     showMainApp() {
         const user = Auth.getCurrentUser();
         if (user) {
-            document.getElementById('sidebarUserName').textContent = user.fullName;
-            document.getElementById('sidebarUserRole').textContent = user.role;
-            document.getElementById('userAvatar').textContent = user.fullName.charAt(0).toUpperCase();
+            document.getElementById('sidebarUserName').textContent = user.fullName || user.username || 'Usuario';
+            document.getElementById('sidebarUserRole').textContent = user.role || 'Usuario';
+            document.getElementById('userAvatar').textContent = (user.fullName || user.username || 'U').charAt(0).toUpperCase();
+            this.updateSidebarStar();
         }
+
+        document.getElementById('loginPage').classList.add('d-none');
+        document.getElementById('mainApp').classList.remove('d-none');
 
         // Aplicar permisos del menú según el rol (restricciones para ciertas secciones)
         this.applyMenuPermissions();
         
         // Initialize modules
-        this.initModules();
-        this.navigateTo('dashboard');
+        this.initModules().then(() => {
+            this.navigateTo('dashboard');
+        });
 
         // Show welcome popup for new users
         Tour.showWelcomeIfNew();
     },
 
-// Todos los usuarios ven todas las secciones del menú. Solo el superadministrador
-    // (Angel) puede abrirlas; el resto verá la etiqueta "Próx." y un aviso al hacer clic.
+    // Cada ítem del menú se muestra, se marca "Próx." o se oculta según el acceso
+    // efectivo del usuario a esa área (rol + ajustes individuales en "Áreas de Usuarios").
     applyMenuPermissions() {
-        const canAccess = Auth.canAccessRestricted();
-        document.querySelectorAll('.restricted-link').forEach(li => {
-            li.style.display = '';
-            const badge = li.querySelector('.soon-badge');
-            if (badge) {
-                badge.style.display = canAccess ? 'none' : '';
-                badge.textContent = canAccess ? '' : 'Próx.';
-            }
+        const user = Auth.getCurrentUser();
+        document.querySelectorAll('.sidebar .nav-link[data-page]').forEach(link => {
+            const page = link.dataset.page;
+            const li = link.closest('.nav-item');
+            const badge = link.querySelector('.soon-badge');
+            const status = Permissions.getEffectiveAreaStatus(user, page);
+
+            if (!li) return;
+            li.style.display = status === 'none' ? 'none' : '';
+            if (badge) badge.style.display = status === 'soon' ? '' : 'none';
         });
     },
 
-    initModules() {
+    async initModules() {
+        if (typeof SupabaseService !== 'undefined') {
+            await SupabaseService.init();
+        }
+        
         Dashboard.init();
         Inventory.init();
-        Sales.init();
-        Returns.init();
-        DataStore.seedAccessoryTemplates();
+        await DataStore.seedAccessoryTemplates();
         Export.init();
-        this.setupUsers();
-        this.setupSupplies();
-        this.setupSchedule();
-        this.setupHistory();
+        await this.setupUsers();
+        await this.setupSupplies();
+        await this.setupSchedule();
+        await this.setupHistory();
+        POS.init();
+        Purchases.init();
+        RolesAdmin.init();
+        this.setupSupportModal();
+        this.setupProfileModal();
         Inventory.setupAccesories();
+        this.updateStockAlertBadges();
+        this.startAutoSync();
+    },
+
+    // Cada 10 segundos revisa si hay cambios nuevos en Supabase (hechos desde otro
+    // dispositivo/usuario) y refresca la pantalla actual sin interrumpir al usuario.
+    startAutoSync() {
+        if (this._autoSyncTimer) return;
+        this._autoSyncTimer = setInterval(async () => {
+            if (typeof SupabaseService !== 'undefined' && SupabaseService.isConnected()) {
+                await SupabaseService.syncFromSupabase();
+                this.refreshCurrentPageData();
+            }
+        }, 10000);
+    },
+
+    refreshCurrentPageData() {
+        const activeLink = document.querySelector('.sidebar .nav-link.active[data-page]');
+        const page = activeLink ? activeLink.dataset.page : null;
+        try {
+            if (page === 'horarios') this.renderScheduleCalendar();
+            else if (page === 'ventas') POS.onPageShow();
+            else if (page === 'historial') this.renderHistoryTable();
+            else if (page === 'inventario') Inventory.renderTable();
+            else if (page === 'accesorios') Inventory.renderAccesoriesTable();
+            else if (page === 'dashboard') Dashboard.update();
+            else if (page === 'areas-usuarios') RolesAdmin.onPageShow();
+            else if (page === 'usuarios') this.renderUsersTable();
+            else if (page === 'compras') Purchases.onPageShow();
+            else if (page === 'inventario-general') this.renderSuppliesTable();
+        } catch (e) {
+            console.error('Error refrescando datos de la página:', e);
+        }
+        this.updateStockAlertBadges();
     },
 
     setupClock() {
@@ -228,27 +327,29 @@ navigateTo(page) {
         setInterval(updateClock, 1000);
     },
 
-    setupUsers() {
-        // Add user button
+    async setupUsers() {
         document.getElementById('addUserBtn').addEventListener('click', () => {
             document.getElementById('userModalTitle').innerHTML = '<i class="bi bi-person-plus me-2"></i>Nuevo Usuario';
             document.getElementById('userForm').reset();
             document.getElementById('userId').value = '';
             document.getElementById('userPassword').required = true;
             document.querySelector('#userModal .text-muted').style.display = 'none';
+            this.populateUserRoleSelect('role_vendedor');
             const modal = new bootstrap.Modal(document.getElementById('userModal'));
             modal.show();
         });
 
-        // Save user
-        document.getElementById('saveUserBtn').addEventListener('click', () => {
+        document.getElementById('saveUserBtn').addEventListener('click', async () => {
             const id = document.getElementById('userId').value;
+            const roleId = document.getElementById('userRole').value;
+            const roleObj = Permissions.getRoleById(roleId);
             const data = {
                 fullName: document.getElementById('userFullName').value.trim(),
                 username: document.getElementById('userUsername').value.trim(),
                 email: document.getElementById('userEmail').value.trim(),
                 password: document.getElementById('userPassword').value,
-                role: document.getElementById('userRole').value
+                roleId: roleId,
+                role: roleObj ? roleObj.name : 'Vendedor'
             };
 
             if (!data.fullName || !data.username || !data.email) {
@@ -257,30 +358,26 @@ navigateTo(page) {
             }
 
             if (id) {
-                // Edit mode
                 const existingUser = DataStore.getUsers().find(u => u.id === id);
-                // El rol "Administrador de programación" es EXCLUSIVO de ANGEL A. COLON NEGRON
                 if (existingUser && (existingUser.id === 'usr_angel' || existingUser.username.toLowerCase() === 'angel')) {
+                    data.roleId = 'role_admin_prog';
                     data.role = 'Administrador de programación';
                     data.fullName = 'ANGEL A. COLON NEGRON';
                 }
-                const updateData = { fullName: data.fullName, username: data.username, email: data.email, role: data.role };
+                const updateData = { fullName: data.fullName, username: data.username, email: data.email, roleId: data.roleId, role: data.role };
                 if (data.password) updateData.password = data.password;
-                DataStore.updateUser(id, updateData);
-                this.logHistory('Edición de usuario', `Se editó el usuario "${data.username}" (nombre: ${data.fullName}, correo: ${data.email}, rol: ${data.role})`);
+                await DataStore.updateUser(id, updateData);
+                await this.logHistory('Edición de usuario', `Se editó el usuario "${data.username}" (nombre: ${data.fullName}, correo: ${data.email}, rol: ${data.role})`);
 
-                // If editing own user, update the session immediately
                 const currentUser = Auth.getCurrentUser();
                 if (currentUser && currentUser.id === id) {
                     const updatedUser = DataStore.getUsers().find(u => u.id === id);
                     if (updatedUser) {
                         Auth.currentUser = updatedUser;
                         localStorage.setItem('xtrem_session', JSON.stringify(updatedUser));
-                        // Update sidebar info
                         document.getElementById('sidebarUserName').textContent = updatedUser.fullName;
                         document.getElementById('sidebarUserRole').textContent = updatedUser.role;
                         document.getElementById('userAvatar').textContent = updatedUser.fullName.charAt(0).toUpperCase();
-                        // Re-apply permissions based on new role
                         Inventory.applyRolePermissions();
                         Inventory.renderTable();
                     }
@@ -288,7 +385,6 @@ navigateTo(page) {
 
                 App.showToast('Usuario actualizado exitosamente', 'success');
             } else {
-                // New user
                 if (!data.password || data.password.length < 6) {
                     App.showToast('La contraseña debe tener al menos 6 caracteres', 'error');
                     return;
@@ -298,8 +394,8 @@ navigateTo(page) {
                     App.showToast('El nombre de usuario ya existe', 'error');
                     return;
                 }
-                DataStore.addUser(data);
-                this.logHistory('Nuevo usuario', `Se creó el usuario "${data.username}" con nombre "${data.fullName}", correo "${data.email}" y rol "${data.role}"`);
+                await DataStore.addUser(data);
+                await this.logHistory('Nuevo usuario', `Se creó el usuario "${data.username}" con nombre "${data.fullName}", correo "${data.email}" y rol "${data.role}"`);
                 App.showToast('Usuario agregado exitosamente', 'success');
             }
 
@@ -308,8 +404,224 @@ navigateTo(page) {
             this.renderUsersTable();
         });
 
-        // Initial render
         this.renderUsersTable();
+    },
+
+    // Llena el <select> de rol con todos los roles disponibles (incluye los que Angel
+    // haya creado desde "Áreas de Usuarios") y respeta el permiso "changeRoles".
+    populateUserRoleSelect(selectedRoleId) {
+        const select = document.getElementById('userRole');
+        const roles = Permissions.getRoles();
+        select.innerHTML = roles.map(r => `<option value="${r.id}">${this.escapeHtml(r.name)}</option>`).join('');
+        select.value = selectedRoleId || 'role_vendedor';
+        select.disabled = !Auth.can('changeRoles');
+    },
+
+    // ===== SQL EDITOR =====
+    setupSqlEditor() {
+        if (this.sqlEditorInitialized) return;
+        this.sqlEditorInitialized = true;
+
+        document.getElementById('runSqlBtn').addEventListener('click', () => this.executeSqlQuery());
+        document.getElementById('clearSqlBtn').addEventListener('click', () => {
+            document.getElementById('sqlQueryInput').value = '';
+            document.getElementById('sqlResultsContainer').style.display = 'none';
+            document.getElementById('sqlNoResults').classList.add('d-none');
+            document.getElementById('sqlError').classList.add('d-none');
+            document.getElementById('sqlSuccess').classList.add('d-none');
+        });
+
+        document.getElementById('sqlQueryInput').addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                this.executeSqlQuery();
+            }
+        });
+    },
+
+    executeSqlQuery() {
+        const query = document.getElementById('sqlQueryInput').value.trim();
+        const errorEl = document.getElementById('sqlError');
+        const successEl = document.getElementById('sqlSuccess');
+        const resultsContainer = document.getElementById('sqlResultsContainer');
+        const noResults = document.getElementById('sqlNoResults');
+        const resultCount = document.getElementById('sqlResultCount');
+        const resultsHead = document.getElementById('sqlResultsHead');
+        const resultsBody = document.getElementById('sqlResultsBody');
+
+        errorEl.classList.add('d-none');
+        successEl.classList.add('d-none');
+        resultsContainer.style.display = 'none';
+        noResults.classList.add('d-none');
+
+        if (!query) {
+            errorEl.textContent = 'Por favor ingrese una consulta SQL';
+            errorEl.classList.remove('d-none');
+            return;
+        }
+
+        const runSupabase = async () => {
+            if (!SupabaseService.isConnected()) {
+                throw new Error('Supabase no está conectado. Verifique la configuración.');
+            }
+
+            let result = await SupabaseService.client.rpc('execute_sql', { query });
+
+            if (result.error) {
+                throw new Error(result.error.message || 'Error ejecutando consulta en Supabase');
+            }
+
+            const data = result.data;
+            if (!data || data.length === 0) {
+                noResults.classList.remove('d-none');
+                successEl.textContent = 'Consulta ejecutada correctamente (0 filas afectadas)';
+                successEl.classList.remove('d-none');
+                return;
+            }
+
+            resultsContainer.style.display = 'block';
+            resultCount.textContent = `${data.length} fila(s)`;
+
+            const columns = Object.keys(data[0]);
+            resultsHead.innerHTML = '<tr>' + columns.map(col => `<th>${this.escapeHtml(col)}</th>`).join('') + '</tr>';
+            resultsBody.innerHTML = data.map(row =>
+                '<tr>' + columns.map(col => {
+                    const val = row[col];
+                    if (val === null || val === undefined) return '<td class="text-muted">NULL</td>';
+                    if (typeof val === 'object') return `<td>${this.escapeHtml(JSON.stringify(val))}</td>`;
+                    return `<td>${this.escapeHtml(String(val))}</td>`;
+                }).join('') + '</tr>'
+            ).join('');
+        };
+
+        const runLocal = () => {
+            if (typeof alasql === 'undefined') {
+                throw new Error('AlaSQL no está cargado. Verifique la conexión a internet.');
+            }
+
+            const users = DataStore.getUsers();
+            const products = DataStore.getProducts();
+            const supplies = DataStore.getSupplies();
+            const schedule = DataStore.getSchedule();
+            const sales = DataStore.getSales();
+            const history = DataStore.getHistory();
+
+            alasql('CREATE TABLE IF NOT EXISTS users');
+            alasql('CREATE TABLE IF NOT EXISTS products');
+            alasql('CREATE TABLE IF NOT EXISTS supplies');
+            alasql('CREATE TABLE IF NOT EXISTS schedule');
+            alasql('CREATE TABLE IF NOT EXISTS sales');
+            alasql('CREATE TABLE IF NOT EXISTS history');
+
+            alasql('DROP TABLE IF EXISTS users');
+            alasql('DROP TABLE IF EXISTS products');
+            alasql('DROP TABLE IF EXISTS supplies');
+            alasql('DROP TABLE IF EXISTS schedule');
+            alasql('DROP TABLE IF EXISTS sales');
+            alasql('DROP TABLE IF EXISTS history');
+
+            alasql('CREATE TABLE users');
+            alasql.tables.users.data = users.map(u => ({...u}));
+
+            alasql('CREATE TABLE products');
+            alasql.tables.products.data = products.map(p => ({...p}));
+
+            alasql('CREATE TABLE supplies');
+            alasql.tables.supplies.data = supplies.map(s => ({...s}));
+
+            alasql('CREATE TABLE schedule');
+            alasql.tables.schedule.data = schedule.map(s => ({...s}));
+
+            alasql('CREATE TABLE sales');
+            alasql.tables.sales.data = sales.map(s => ({...s}));
+
+            alasql('CREATE TABLE history');
+            alasql.tables.history.data = history.map(h => ({...h}));
+
+            const result = alasql(query);
+
+            if (!result || result.length === 0) {
+                noResults.classList.remove('d-none');
+                successEl.textContent = 'Consulta ejecutada correctamente (0 filas afectadas)';
+                successEl.classList.remove('d-none');
+            } else {
+                resultsContainer.style.display = 'block';
+                resultCount.textContent = `${result.length} fila(s)`;
+
+                const columns = Object.keys(result[0]);
+                resultsHead.innerHTML = '<tr>' + columns.map(col => `<th>${this.escapeHtml(col)}</th>`).join('') + '</tr>';
+                resultsBody.innerHTML = result.map(row =>
+                    '<tr>' + columns.map(col => {
+                        const val = row[col];
+                        if (val === null || val === undefined) return '<td class="text-muted">NULL</td>';
+                        if (typeof val === 'object') return `<td>${this.escapeHtml(JSON.stringify(val))}</td>`;
+                        return `<td>${this.escapeHtml(String(val))}</td>`;
+                    }).join('') + '</tr>'
+                ).join('');
+            }
+        };
+
+        (async () => {
+            try {
+                await runSupabase();
+            } catch (supErr) {
+                console.warn('Supabase falló, usando localStorage:', supErr);
+                try {
+                    runLocal();
+                } catch (localErr) {
+                    errorEl.textContent = 'Error en la consulta: ' + localErr.message;
+                    errorEl.classList.remove('d-none');
+                }
+            }
+        })();
+    },
+
+    // Id del usuario con mayor monto (Q) vendido en el mes calendario actual.
+    // Se agrupa por sellerId cuando está disponible (ventas nuevas); para ventas
+    // antiguas que solo tienen el nombre, se busca el usuario por nombre (sin
+    // distinguir mayúsculas/espacios) como respaldo.
+    getTopSellerThisMonth() {
+        const sales = DataStore.getSales();
+        const users = DataStore.getUsers();
+        const now = new Date();
+        const y = now.getFullYear(), m = now.getMonth();
+
+        const findUserIdByName = (name) => {
+            if (!name) return null;
+            const normalized = name.trim().toLowerCase();
+            const match = users.find(u => (u.fullName || '').trim().toLowerCase() === normalized);
+            return match ? match.id : null;
+        };
+
+        const totals = {};
+        sales.forEach(s => {
+            if (!s.createdAt) return;
+            const d = new Date(s.createdAt);
+            if (d.getFullYear() !== y || d.getMonth() !== m) return;
+
+            const userId = s.sellerId || findUserIdByName(s.seller);
+            if (!userId) return;
+
+            totals[userId] = (totals[userId] || 0) + (parseFloat(s.total) || 0);
+        });
+
+        let topId = null, topVal = 0;
+        Object.entries(totals).forEach(([id, val]) => {
+            if (val > topVal) { topVal = val; topId = id; }
+        });
+        return topId;
+    },
+
+    // Muestra/oculta la estrella junto al nombre del usuario en el menú lateral
+    updateSidebarStar() {
+        const star = document.getElementById('sidebarUserStar');
+        if (!star) return;
+        const user = Auth.getCurrentUser();
+        const topSellerId = this.getTopSellerThisMonth();
+        const isTopSeller = !!(user && topSellerId && user.id === topSellerId);
+        star.classList.toggle('d-none', !isTopSeller);
+        if (isTopSeller && typeof bootstrap !== 'undefined' && !bootstrap.Tooltip.getInstance(star)) {
+            new bootstrap.Tooltip(star);
+        }
     },
 
     renderUsersTable() {
@@ -324,12 +636,17 @@ navigateTo(page) {
             return;
         }
 
+        const topSellerId = this.getTopSellerThisMonth();
+
         tbody.innerHTML = users.map((u, idx) => {
             const date = new Date(u.createdAt).toLocaleDateString('es-GT');
+            const star = (topSellerId && u.id === topSellerId)
+                ? ' <i class="bi bi-star-fill text-warning ms-1" data-bs-toggle="tooltip" data-bs-placement="top" title="Empleado del mes"></i>'
+                : '';
             return `
                 <tr>
                     <td class="fw-bold">${idx + 1}</td>
-                    <td>${this.escapeHtml(u.fullName)}</td>
+                    <td>${this.escapeHtml(u.fullName)}${star}</td>
                     <td><code>${this.escapeHtml(u.username)}</code></td>
 <td>${this.escapeHtml(u.email)}</td>
                     <td><span class="role-badge ${u.role === 'Administrador de programación' ? 'role-badge-blue' : (u.role === 'Administrador' ? 'role-badge-red' : 'role-badge-gray')}">${this.escapeHtml(u.role)}</span></td>
@@ -347,6 +664,9 @@ navigateTo(page) {
                 </tr>
             `;
         }).join('');
+
+        tbody.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => new bootstrap.Tooltip(el));
+        this.updateSidebarStar();
     },
 
     editUser(id) {
@@ -361,15 +681,14 @@ navigateTo(page) {
         document.getElementById('userEmail').value = user.email;
         document.getElementById('userPassword').value = '';
         document.getElementById('userPassword').required = false;
-        document.getElementById('userRole').value = user.role;
+        this.populateUserRoleSelect(user.roleId);
         document.querySelector('#userModal .text-muted').style.display = 'block';
 
         const modal = new bootstrap.Modal(document.getElementById('userModal'));
         modal.show();
     },
 
-deleteUser(id) {
-        // Superadministrador (Angel) no puede ser eliminado nunca.
+    deleteUser(id) {
         if (id === 'usr_angel') {
             App.showToast('El superadministrador "Angel" no puede ser eliminado', 'error');
             return;
@@ -386,14 +705,13 @@ deleteUser(id) {
             return;
         }
         document.getElementById('deleteModalMessage').textContent = 
-            `Â¿Estás seguro de eliminar al usuario "${user.fullName}"?`;
-        document.getElementById('confirmDeleteBtn').onclick = () => {
-            // DataStore.deleteUser solo elimina el id exacto y retorna true si lo hizo.
-            const deleted = DataStore.deleteUser(id);
+            `¿Estás seguro de eliminar al usuario "${user.fullName}"?`;
+        document.getElementById('confirmDeleteBtn').onclick = async () => {
+            const deleted = await DataStore.deleteUser(id);
             const modal = bootstrap.Modal.getInstance(document.getElementById('deleteModal'));
             modal.hide();
             if (deleted) {
-                this.logHistory('Eliminación de usuario', `Se eliminó al usuario "${user.username}" (${user.fullName})`);
+                await this.logHistory('Eliminación de usuario', `Se eliminó al usuario "${user.username}" (${user.fullName})`);
                 App.showToast('Usuario eliminado exitosamente', 'success');
             } else {
                 App.showToast('No se pudo eliminar el usuario', 'error');
@@ -405,8 +723,7 @@ deleteUser(id) {
     },
 
 // ===== SUPPLIES =====
-    setupSupplies() {
-        // Add supply button
+    async setupSupplies() {
         document.getElementById('addSupplyBtn').addEventListener('click', () => {
             document.getElementById('supplyModalTitle').innerHTML = '<i class="bi bi-boxes me-2"></i>Agregar Suministro';
             document.getElementById('supplyForm').reset();
@@ -415,8 +732,7 @@ deleteUser(id) {
             modal.show();
         });
 
-        // Save supply
-        document.getElementById('saveSupplyBtn').addEventListener('click', () => {
+        document.getElementById('saveSupplyBtn').addEventListener('click', async () => {
             const id = document.getElementById('supplyId').value;
             const data = {
                 name: document.getElementById('supplyName').value.trim(),
@@ -433,26 +749,26 @@ deleteUser(id) {
             }
 
             if (id) {
-                DataStore.updateSupply(id, data);
-                this.logHistory('Edición de suministro', `Se editó el suministro "${data.name}" (categoría: ${data.category}, cantidad: ${data.quantity})`);
+                await DataStore.updateSupply(id, data);
+                await this.logHistory('Edición de suministro', `Se editó el suministro "${data.name}" (categoría: ${data.category}, cantidad: ${data.quantity})`);
                 App.showToast('Suministro actualizado exitosamente', 'success');
             } else {
-                DataStore.addSupply(data);
-                this.logHistory('Nuevo suministro', `Se agregó el suministro "${data.name}" (categoría: ${data.category}, cantidad: ${data.quantity})`);
+                await DataStore.addSupply(data);
+                await this.logHistory('Nuevo suministro', `Se agregó el suministro "${data.name}" (categoría: ${data.category}, cantidad: ${data.quantity})`);
                 App.showToast('Suministro agregado exitosamente', 'success');
             }
 
             const modal = bootstrap.Modal.getInstance(document.getElementById('supplyModal'));
             modal.hide();
             this.renderSuppliesTable();
+            this.updateStockAlertBadges();
+            if (typeof Purchases !== 'undefined') Purchases.scan();
         });
 
-        // Search and filter events
         document.getElementById('searchSupplies').addEventListener('input', () => this.renderSuppliesTable());
         document.getElementById('filterSuppliesCategory').addEventListener('change', () => this.renderSuppliesTable());
         document.getElementById('filterSuppliesStatus').addEventListener('change', () => this.renderSuppliesTable());
 
-        // Export supplies PDF
         document.getElementById('exportSuppliesPdfBtn').addEventListener('click', () => {
             const supplies = this.getFilteredSupplies();
             if (supplies.length === 0) {
@@ -468,7 +784,6 @@ deleteUser(id) {
                 timeStyle: 'short'
             });
 
-            // Header profesional
             doc.setFillColor(220, 53, 69);
             doc.rect(0, 0, 210, 30, 'F');
             doc.setTextColor(255, 255, 255);
@@ -481,7 +796,6 @@ deleteUser(id) {
             doc.setFontSize(8);
             doc.text('Tel: 787-205-2220', 105, 26, { align: 'center' });
 
-            // Metadata
             doc.setTextColor(60, 60, 60);
             doc.setFontSize(9);
             doc.text('Generado por: ' + (currentUser ? currentUser.fullName : 'N/A') + ' | ' + dateStr, 14, 36);
@@ -518,7 +832,7 @@ deleteUser(id) {
                 doc.text('(c) ' + new Date().getFullYear() + ' XTREME MOBILE INC. - Tel: 787-205-2220', 196, 290, { align: 'right' });
             }
 
-doc.save('inventario-general.pdf');
+            doc.save('inventario-general.pdf');
             App.showToast('PDF exportado exitosamente', 'success');
         });
 
@@ -555,17 +869,31 @@ doc.save('inventario-general.pdf');
         }
 
         tbody.innerHTML = supplies.map((s, i) => {
-            const isLow = s.quantity <= s.minStock;
+            const qty = parseInt(s.quantity) || 0;
+            const min = parseInt(s.minStock) || 0;
+            const isLow = min > 0 && qty <= min;
+            const isNearLow = min > 0 && !isLow && qty <= min * 1.5;
             const date = s.updatedAt ? new Date(s.updatedAt).toLocaleDateString('es-GT') : '-';
+
+            let qtyClass = 'text-success';
+            let statusBadge = '<span class="badge bg-success">OK</span>';
+            if (isLow) {
+                qtyClass = 'text-danger';
+                statusBadge = '<span class="badge bg-danger">Stock Bajo</span>';
+            } else if (isNearLow) {
+                qtyClass = 'text-orange';
+                statusBadge = '<span class="badge badge-stock-medium">Por Acabarse</span>';
+            }
+
             return `
                 <tr>
                     <td class="fw-bold">${i + 1}</td>
                     <td>${this.escapeHtml(s.name)}</td>
                     <td><span class="badge bg-secondary">${this.escapeHtml(s.category)}</span></td>
-                    <td class="fw-bold ${isLow ? 'text-danger' : 'text-success'}">${s.quantity}</td>
+                    <td class="fw-bold ${qtyClass}">${qty}</td>
                     <td>${this.escapeHtml(s.unit || 'Unidades')}</td>
                     <td>${s.minStock || 0}</td>
-                    <td>${isLow ? '<span class="badge bg-danger">Stock Bajo</span>' : '<span class="badge bg-success">OK</span>'}</td>
+                    <td>${statusBadge}</td>
                     <td><small class="text-muted">${this.escapeHtml(s.notes || '')}</small></td>
                     <td><small class="text-muted">${date}</small></td>
                     <td>
@@ -604,31 +932,49 @@ doc.save('inventario-general.pdf');
     deleteSupply(id) {
         const supplies = DataStore.getSupplies();
         const supply = supplies.find(s => s.id === id);
-        document.getElementById('deleteModalMessage').textContent = `Â¿Estás seguro de eliminar "${supply.name}"?`;
-        document.getElementById('confirmDeleteBtn').onclick = () => {
-            DataStore.deleteSupply(id);
-            this.logHistory('Eliminación de suministro', `Se eliminó el suministro "${supply.name}"`);
+        document.getElementById('deleteModalMessage').textContent = `¿Estás seguro de eliminar "${supply.name}"?`;
+        document.getElementById('confirmDeleteBtn').onclick = async () => {
+            await DataStore.deleteSupply(id);
+            await this.logHistory('Eliminación de suministro', `Se eliminó el suministro "${supply.name}"`);
             const modal = bootstrap.Modal.getInstance(document.getElementById('deleteModal'));
             modal.hide();
             App.showToast('Suministro eliminado exitosamente', 'success');
             this.renderSuppliesTable();
+            this.updateStockAlertBadges();
+            if (typeof Purchases !== 'undefined') Purchases.scan();
         };
         const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
         modal.show();
     },
 
     // ===== SCHEDULE =====
-    setupSchedule() {
+    populateScheduleEmployeeSelect(selectedName) {
+        const select = document.getElementById('scheduleEmployeeSelect');
+        const users = DataStore.getUsers();
+        select.innerHTML = '<option value="">Seleccionar empleado...</option>';
+        users.forEach(u => {
+            if (u.username && u.password) {
+                const option = document.createElement('option');
+                option.value = u.fullName;
+                option.textContent = u.fullName;
+                if (u.fullName === selectedName) option.selected = true;
+                select.appendChild(option);
+            }
+        });
+    },
+
+    async setupSchedule() {
         document.getElementById('addScheduleBtn').addEventListener('click', () => {
             document.getElementById('scheduleModalTitle').innerHTML = '<i class="bi bi-calendar-plus me-2"></i>Agregar Horario';
             document.getElementById('scheduleForm').reset();
             document.getElementById('scheduleId').value = '';
             document.getElementById('scheduleDate').value = '';
+            this.populateScheduleEmployeeSelect();
             const modal = new bootstrap.Modal(document.getElementById('scheduleModal'));
             modal.show();
         });
 
-        document.getElementById('saveScheduleBtn').addEventListener('click', () => {
+        document.getElementById('saveScheduleBtn').addEventListener('click', async () => {
             const id = document.getElementById('scheduleId').value;
             const dateValue = document.getElementById('scheduleDate').value;
             const dayName = dateValue ? (() => {
@@ -637,8 +983,11 @@ doc.save('inventario-general.pdf');
                 return names[(d.getDay() + 6) % 7];
             })() : '';
 
+            const selectEmployee = document.getElementById('scheduleEmployeeSelect');
+            const employeeName = selectEmployee.value || document.getElementById('scheduleEmployee').value.trim();
+
             const data = {
-                employeeName: document.getElementById('scheduleEmployee').value.trim(),
+                employeeName: employeeName,
                 date: dateValue,
                 day: dayName,
                 startTime: document.getElementById('scheduleStart').value,
@@ -653,12 +1002,12 @@ doc.save('inventario-general.pdf');
             }
 
             if (id) {
-                DataStore.updateScheduleEntry(id, data);
-                this.logHistory('Edición de horario', `Se editó el horario de "${data.employeeName}" (${data.date}, ${data.startTime}-${data.endTime}, rol: ${data.role})`);
+                await DataStore.updateScheduleEntry(id, data);
+                await this.logHistory('Edición de horario', `Se editó el horario de "${data.employeeName}" (${data.date}, ${data.startTime}-${data.endTime}, rol: ${data.role})`);
                 App.showToast('Horario actualizado exitosamente', 'success');
             } else {
-                DataStore.addScheduleEntry(data);
-                this.logHistory('Nuevo horario', `Se agregó el horario de "${data.employeeName}" (${data.date}, ${data.startTime}-${data.endTime}, rol: ${data.role})`);
+                await DataStore.addScheduleEntry(data);
+                await this.logHistory('Nuevo horario', `Se agregó el horario de "${data.employeeName}" (${data.date}, ${data.startTime}-${data.endTime}, rol: ${data.role})`);
                 App.showToast('Horario agregado exitosamente', 'success');
             }
 
@@ -679,6 +1028,7 @@ doc.save('inventario-general.pdf');
             document.getElementById('scheduleForm').reset();
             document.getElementById('scheduleId').value = '';
             document.getElementById('scheduleDate').value = dateValue;
+            this.populateScheduleEmployeeSelect();
             const modal = new bootstrap.Modal(document.getElementById('scheduleModal'));
             modal.show();
         });
@@ -692,6 +1042,7 @@ doc.save('inventario-general.pdf');
             if (this.scheduleCurrentMonth < 0) {
                 this.scheduleCurrentMonth = 11;
                 this.scheduleCurrentYear--;
+
             }
             this.renderScheduleCalendar();
         });
@@ -705,7 +1056,7 @@ doc.save('inventario-general.pdf');
             this.renderScheduleCalendar();
         });
 
-        DataStore.seedSundayClosures();
+        await DataStore.seedSundayClosures();
         this.renderScheduleCalendar();
     },
 
@@ -799,7 +1150,7 @@ doc.save('inventario-general.pdf');
                 html += `<div class="schedule-day-entries">`;
 
                 if (dayEntries.length === 0) {
-                    html += `<small class="text-muted d-block text-center" style="font-size:0.7rem">â€”</small>`;
+                    html += `<small class="text-muted d-block text-center" style="font-size:0.7rem">—</small>`;
                 } else {
                     dayEntries.forEach(s => {
                         const color = employeeColors[s.employeeName] || '#6c757d';
@@ -848,7 +1199,7 @@ doc.save('inventario-general.pdf');
 
             html += `<div class="schedule-week-hours-cell">`;
             if (Object.keys(hoursByEmployee).length === 0) {
-                html += `<small class="text-muted d-block text-center" style="font-size:0.7rem">â€”</small>`;
+                html += `<small class="text-muted d-block text-center" style="font-size:0.7rem">—</small>`;
             } else {
                 Object.entries(hoursByEmployee).forEach(([name, hours]) => {
                     const color = employeeColors[name] || '#6c757d';
@@ -900,7 +1251,7 @@ doc.save('inventario-general.pdf');
 
         document.getElementById('scheduleModalTitle').innerHTML = '<i class="bi bi-pencil me-2"></i>Editar Horario';
         document.getElementById('scheduleId').value = entry.id;
-        document.getElementById('scheduleEmployee').value = entry.employeeName;
+        this.populateScheduleEmployeeSelect(entry.employeeName);
         document.getElementById('scheduleDate').value = entry.date || '';
         document.getElementById('scheduleStart').value = entry.startTime;
         document.getElementById('scheduleEnd').value = entry.endTime;
@@ -915,10 +1266,10 @@ doc.save('inventario-general.pdf');
         const schedule = DataStore.getSchedule();
         const entry = schedule.find(s => s.id === id);
         document.getElementById('deleteModalMessage').textContent = 
-            `Â¿Estás seguro de eliminar el horario de "${entry.employeeName}" (${entry.date || entry.day})?`;
-        document.getElementById('confirmDeleteBtn').onclick = () => {
-            DataStore.deleteScheduleEntry(id);
-            this.logHistory('Eliminación de horario', `Se eliminó el horario de "${entry.employeeName}" (${entry.date || entry.day})`);
+            `¿Estás seguro de eliminar el horario de "${entry.employeeName}" (${entry.date || entry.day})?`;
+        document.getElementById('confirmDeleteBtn').onclick = async () => {
+            await DataStore.deleteScheduleEntry(id);
+            await this.logHistory('Eliminación de horario', `Se eliminó el horario de "${entry.employeeName}" (${entry.date || entry.day})`);
             const modal = bootstrap.Modal.getInstance(document.getElementById('deleteModal'));
             modal.hide();
             App.showToast('Horario eliminado exitosamente', 'success');
@@ -929,15 +1280,22 @@ doc.save('inventario-general.pdf');
     },
 
     // ===== HISTORY =====
-    setupHistory() {
+    async setupHistory() {
+        const clearBtn = document.getElementById('clearHistoryBtn');
+        if (clearBtn) {
+            clearBtn.style.display = Auth.can('clearHistory') ? '' : 'none';
+        }
+
         document.getElementById('searchHistory').addEventListener('input', () => this.renderHistoryTable());
         document.getElementById('filterHistoryFrom').addEventListener('change', () => this.renderHistoryTable());
         document.getElementById('filterHistoryTo').addEventListener('change', () => this.renderHistoryTable());
-        document.getElementById('clearHistoryBtn').addEventListener('click', () => {
-            DataStore.clearHistory();
-            this.renderHistoryTable();
-            App.showToast('Historial limpiado exitosamente', 'success');
-        });
+        if (clearBtn) {
+            clearBtn.addEventListener('click', async () => {
+                await DataStore.clearHistory();
+                this.renderHistoryTable();
+                App.showToast('Historial limpiado exitosamente', 'success');
+            });
+        }
 
         this.renderHistoryTable();
     },
@@ -983,12 +1341,155 @@ doc.save('inventario-general.pdf');
         `).join('');
     },
 
-    logHistory(action, detail) {
+    async logHistory(action, detail) {
         const user = Auth.getCurrentUser();
-        DataStore.addHistoryEntry({
+        await DataStore.addHistoryEntry({
             user: user ? user.fullName : 'Sistema',
             action: action,
             detail: detail
+        });
+    },
+
+    // ===== NOTIFICACIONES DE STOCK BAJO EN EL MENÚ =====
+    updateStockAlertBadges() {
+        const products = DataStore.getProducts();
+        const supplies = DataStore.getSupplies();
+        const isLow = (stock, min) => {
+            const s = parseInt(stock) || 0;
+            const m = parseInt(min) || 0;
+            return m > 0 && s <= m;
+        };
+
+        const inventarioCount = products.filter(p => p.category !== 'ACCESORIOS' && isLow(p.stock, p.minStock)).length;
+        const accesoriosCount = products.filter(p => p.category === 'ACCESORIOS' && isLow(p.stock, p.minStock)).length;
+        const suppliesCount = supplies.filter(s => isLow(s.quantity, s.minStock)).length;
+        const comprasCount = (typeof DataStore.getPurchaseRequests === 'function') ? DataStore.getPurchaseRequests().filter(r => !r.ordered).length : 0;
+
+        this.setNavBadge('navBadgeInventario', inventarioCount);
+        this.setNavBadge('navBadgeAccesorios', accesoriosCount);
+        this.setNavBadge('navBadgeInventarioGeneral', suppliesCount);
+        this.setNavBadge('navBadgeCompras', comprasCount);
+    },
+
+    setNavBadge(id, count) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.textContent = count;
+        el.classList.toggle('d-none', count <= 0);
+    },
+
+    // ===== MI PERFIL =====
+    setupProfileModal() {
+        document.getElementById('profileModal').addEventListener('show.bs.modal', () => this.openProfileModal());
+        document.getElementById('saveProfileBtn').addEventListener('click', () => this.saveProfile());
+    },
+
+    openProfileModal() {
+        const user = Auth.getCurrentUser();
+        if (!user) return;
+        document.getElementById('profileAvatarPreview').textContent = (user.fullName || user.username || 'U').charAt(0).toUpperCase();
+        document.getElementById('profileUsernameLabel').textContent = '@' + user.username;
+        document.getElementById('profileFullName').value = user.fullName || '';
+        document.getElementById('profileEmail').value = user.email || '';
+        document.getElementById('profileNewPassword').value = '';
+        document.getElementById('profileNewPasswordConfirm').value = '';
+    },
+
+    async saveProfile() {
+        const fullName = document.getElementById('profileFullName').value.trim();
+        const email = document.getElementById('profileEmail').value.trim();
+        const newPassword = document.getElementById('profileNewPassword').value;
+        const newPasswordConfirm = document.getElementById('profileNewPasswordConfirm').value;
+
+        if (!fullName || !email) {
+            App.showToast('Por favor completa tu nombre y correo', 'error');
+            return;
+        }
+
+        if (newPassword || newPasswordConfirm) {
+            if (newPassword.length < 6) {
+                App.showToast('La nueva contraseña debe tener al menos 6 caracteres', 'error');
+                return;
+            }
+            if (newPassword !== newPasswordConfirm) {
+                App.showToast('Las contraseñas no coinciden', 'error');
+                return;
+            }
+        }
+
+        const updateData = { fullName, email };
+        if (newPassword) updateData.password = newPassword;
+
+        const user = Auth.getCurrentUser();
+
+        const ok = await Auth.updateProfile(updateData);
+        if (ok) {
+            document.getElementById('sidebarUserName').textContent = Auth.currentUser.fullName;
+            document.getElementById('userAvatar').textContent = (Auth.currentUser.fullName || 'U').charAt(0).toUpperCase();
+            this.renderUsersTable();
+            await this.logHistory('Perfil actualizado', `El usuario "${user.username}" actualizó su perfil`);
+            App.showToast('Perfil actualizado exitosamente', 'success');
+            const modal = bootstrap.Modal.getInstance(document.getElementById('profileModal'));
+            if (modal) modal.hide();
+        } else {
+            App.showToast('No se pudo actualizar el perfil', 'error');
+        }
+    },
+
+    // ===== ACTUALIZACIONES =====
+    renderUpdatesPage() {
+        const dateBadge = document.getElementById('updatesVersionDate');
+        if (dateBadge) {
+            const d = new Date(APP_VERSION_DATE + 'T00:00:00');
+            dateBadge.textContent = d.toLocaleDateString('es-GT', { day: 'numeric', month: 'long', year: 'numeric' });
+        }
+    },
+
+    // ===== SOPORTE TÉCNICO =====
+    setupSupportModal() {
+        const versionLabel = document.getElementById('supportVersionLabel');
+        if (versionLabel) versionLabel.textContent = APP_VERSION;
+
+        document.getElementById('sendSupportProblemBtn').addEventListener('click', () => this.sendSupportProblem());
+    },
+
+    // Abre el cliente de correo del usuario con un mensaje pre-escrito a soporte técnico
+    sendSupportProblem() {
+        const textarea = document.getElementById('supportProblemText');
+        const text = textarea.value.trim();
+        if (!text) {
+            App.showToast('Por favor describe tu problema antes de enviar', 'error');
+            return;
+        }
+
+        const user = Auth.getCurrentUser();
+        const userLabel = user ? `${user.fullName} (usuario: ${user.username})` : 'Usuario no identificado';
+        const subject = 'Soporte Técnico - XTREME MOBILE - ' + (user ? user.fullName : 'Usuario');
+        const body = `Usuario: ${userLabel}\nFecha: ${new Date().toLocaleString('es-PR')}\n\nMensaje:\n${text}`;
+        const mailtoUrl = `mailto:soporte-tecnico@angeltechsolutions.dev?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
+        window.location.href = mailtoUrl;
+        App.showToast('Se abrió tu correo con el mensaje listo para enviar', 'success');
+        textarea.value = '';
+    },
+
+    copySupportEmail(email, btnEl) {
+        const restoreIcon = () => {
+            if (btnEl) btnEl.innerHTML = '<i class="bi bi-clipboard"></i>';
+        };
+        const onCopied = () => {
+            if (btnEl) btnEl.innerHTML = '<i class="bi bi-check-lg"></i>';
+            App.showToast('Correo copiado al portapapeles', 'success');
+            setTimeout(restoreIcon, 1500);
+        };
+        navigator.clipboard.writeText(email).then(onCopied).catch(() => {
+            const textarea = document.createElement('textarea');
+            textarea.value = email;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            onCopied();
         });
     },
 
@@ -1022,4 +1523,3 @@ doc.save('inventario-general.pdf');
 document.addEventListener('DOMContentLoaded', () => {
     App.init();
 });
-

@@ -3,18 +3,1989 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>XTREME MOBILE - Sistema de Inventario</title>
-    <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAIGNIUk0AAHomAACAhAAA+gAAAIDoAAB1MAAA6mAAADqYAAAXcJy6UTwAAAFSSURBVHjapZMxTsNAEEX/rNeOAwUlHVdA4gJcABUloaDgAlRcAokLUNDRcAEkLkCBaOgouQIVHZTKjmd3OSzrRGKAJY20q9n5b+bvrMTM+A9T+l0ASIkCQJq1ByLqADQATETNn5IkAQCYGQBApBQAEBEARGYGAGYGwFxEpObz+RMRRUSGmTUMg2aMEZExMymlxszWGGO01ppSCiJiWZbqui7rugYRmVJKzEzOOWutPSmlIsuyX/Jp2m63m2qatNYaIiKlVOn3+8XhcCiYGZIkKcYY8+l0Oj0/P5+yLGPlHACklJLneW4BAGa2iKg1xmwBwBijzWzLGAMAIKIYY5rneZWbq9vt7rbb7XOj0dDO57NlWaZEJABAROVyuWy3262IyD3GHGOsEBEiYmZ2jDEAwIgIAIiI3e/3H2MMAMDv4Pe/c05jxsx8G2MsACiICHPOqaZpYq1WizLGPGqtP4go9N8DACuxbTMJ6XRjAAAAAElFTkSuQmCC">
-    <script>
-        (function () {
-            var hasSession = false;
-            try {
-                hasSession = !!localStorage.getItem('xtrem_session');
-            } catch (e) {}
-            window.location.replace(hasSession ? 'panel.html' : 'login.html');
-        })();
-    </script>
+    <title>Sistema de Inventario - XTREME MOBILE</title>
+    <link rel="icon" type="image/png" href="https://res.cloudinary.com/dtw3qx4qq/image/upload/v1786291062/LogoXtremeMobile_frev1t-removebg-preview_hjzfib.png">
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <!-- jsPDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="css/styles.css">
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 </head>
 <body>
+    <!-- Loading Screen -->
+    <div id="loadingScreen" class="loading-screen">
+        <img src="https://res.cloudinary.com/dtw3qx4qq/image/upload/v1786291062/LogoXtremeMobile_frev1t-removebg-preview_hjzfib.png" alt="XTREME MOBILE" class="loading-logo-img mb-3">
+        <div class="spinner-border text-light" role="status">
+            <span class="visually-hidden">Cargando...</span>
+        </div>
+        <p class="mt-3 text-light fw-bold">XTREME MOBILE</p>
+    </div>
+
+    <!-- ============ LOGIN PAGE ============ -->
+    <div id="loginPage" class="page">
+        <div class="container-fluid min-vh-100 d-flex align-items-center justify-content-center login-bg">
+            <div class="row w-100 justify-content-center">
+                <div class="col-11 col-sm-8 col-md-6 col-lg-4">
+                    <div class="card login-card border-0 shadow-lg">
+                        <div class="card-body p-4 p-md-5">
+                            <div class="text-center mb-4">
+                                <div class="company-logo mx-auto mb-3">
+                                    <img src="https://res.cloudinary.com/dtw3qx4qq/image/upload/v1786291062/LogoXtremeMobile_frev1t-removebg-preview_hjzfib.png" alt="XTREME MOBILE" class="login-logo-img">
+                                </div>
+                                <h3 class="fw-bold text-white">XTREME MOBILE</h3>
+                                <p class="text-white-50 small">Sistema de Inventario</p>
+                            </div>
+                            
+                            <!-- Login Form -->
+                            <form id="loginForm">
+                                <div id="loginError" class="alert alert-danger d-none"></div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold small">Usuario</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light"><i class="bi bi-person"></i></span>
+                                        <input type="text" class="form-control" id="loginUsername" placeholder="Ingrese su usuario" required>
+                                    </div>
+                                </div>
+                                <div class="mb-4">
+                                    <label class="form-label fw-semibold small">Contraseña</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light"><i class="bi bi-lock"></i></span>
+                                        <input type="password" class="form-control" id="loginPassword" placeholder="Ingrese su contraseña" required>
+                                        <button class="btn btn-outline-secondary" type="button" id="togglePassword">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <button type="submit" class="btn btn-danger w-100 py-2 fw-bold mb-3">
+                                    <i class="bi bi-box-arrow-in-right me-2"></i>INGRESAR
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ MAIN APP ============ -->
+    <div id="mainApp" class="page d-none">
+        <div class="app-container">
+            <!-- Sidebar -->
+            <nav id="sidebar" class="sidebar">
+                    <div class="sidebar-header p-3">
+                        <div class="d-flex align-items-center">
+                            <div class="sidebar-logo me-2">
+                                <img src="https://res.cloudinary.com/dtw3qx4qq/image/upload/v1786291062/LogoXtremeMobile_frev1t-removebg-preview_hjzfib.png" alt="XTREME MOBILE" class="sidebar-logo-img">
+                            </div>
+                            <div>
+                                <h6 class="mb-0 fw-bold text-white">XTREME MOBILE</h6>
+                                <small class="text-white-50">Sistema de Inventario</small>
+                            </div>
+                        </div>
+                    <button class="btn btn-link text-white d-md-none mt-2" id="closeSidebar">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+                <hr class="text-white-50 my-2">
+                <div class="sidebar-user px-3 py-2">
+                    <div class="d-flex align-items-center">
+                        <div class="avatar-circle bg-light text-danger me-2">
+                            <span id="userAvatar">U</span>
+                        </div>
+                        <div class="small flex-grow-1">
+                            <span class="fw-bold text-white" id="sidebarUserName">Usuario</span><i class="bi bi-star-fill text-warning ms-1 d-none" id="sidebarUserStar" data-bs-toggle="tooltip" data-bs-placement="right" title="Empleado del mes"></i>
+                            <div class="text-white-50" id="sidebarUserRole">Administrador</div>
+                        </div>
+                        <button type="button" class="btn btn-link text-white-50 p-1" id="openProfileBtn" title="Mi Perfil" data-bs-toggle="modal" data-bs-target="#profileModal">
+                            <i class="bi bi-gear-fill"></i>
+                        </button>
+                    </div>
+                </div>
+                <hr class="text-white-50 my-2">
+                <ul class="nav nav-pills flex-column px-2 py-2">
+                    <li class="nav-item">
+                        <a class="nav-link active" data-page="dashboard" href="#">
+                            <i class="bi bi-speedometer2 me-2"></i>Dashboard
+                            <span class="badge bg-warning text-dark soon-badge" style="display:none">Próx.</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-page="inventario" href="#">
+                            <i class="bi bi-phone me-2"></i>Inventario
+                            <span class="badge rounded-pill bg-danger stock-alert-badge d-none" id="navBadgeInventario" title="Productos en stock bajo">0</span>
+                            <span class="badge bg-warning text-dark soon-badge" style="display:none">Próx.</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-page="accesorios" href="#">
+                            <i class="bi bi-tools me-2"></i>Accesorios
+                            <span class="badge rounded-pill bg-danger stock-alert-badge d-none" id="navBadgeAccesorios" title="Accesorios en stock bajo">0</span>
+                            <span class="badge bg-warning text-dark soon-badge" style="display:none">Próx.</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-page="inventario-general" href="#">
+                            <i class="bi bi-boxes me-2"></i>Inventario General
+                            <span class="badge rounded-pill bg-danger stock-alert-badge d-none" id="navBadgeInventarioGeneral" title="Suministros en stock bajo">0</span>
+                            <span class="badge bg-warning text-dark soon-badge" style="display:none">Próx.</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-page="horarios" href="#">
+                            <i class="bi bi-calendar-week me-2"></i>Horarios
+                            <span class="badge bg-warning text-dark soon-badge" style="display:none">Próx.</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-page="ventas" href="#">
+                            <i class="bi bi-receipt-cutoff me-2"></i>Ventas
+                            <span class="badge bg-warning text-dark soon-badge" style="display:none">Próx.</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-page="compras" href="#">
+                            <i class="bi bi-cart-plus-fill me-2"></i>Compras
+                            <span class="badge rounded-pill bg-danger stock-alert-badge d-none" id="navBadgeCompras" title="Productos por encargar">0</span>
+                            <span class="badge bg-warning text-dark soon-badge" style="display:none">Próx.</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-page="historial" href="#">
+                            <i class="bi bi-clock-history me-2"></i>Historial
+                            <span class="badge bg-warning text-dark soon-badge" style="display:none">Próx.</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-page="usuarios" href="#">
+                            <i class="bi bi-people me-2"></i>Usuarios
+                            <span class="badge bg-warning text-dark soon-badge" style="display:none">Próx.</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-page="sql-editor" href="#">
+                            <i class="bi bi-terminal me-2"></i>SQL Editor
+                            <span class="badge bg-warning text-dark soon-badge" style="display:none">Próx.</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-page="actualizaciones" href="#">
+                            <i class="bi bi-megaphone me-2"></i>Actualizaciones
+                        </a>
+                    </li>
+                    <li class="nav-item" id="navAreasUsuarios">
+                        <a class="nav-link" data-page="areas-usuarios" href="#">
+                            <i class="bi bi-shield-lock me-2"></i>Áreas de Usuarios
+                        </a>
+                    </li>
+                    <li class="nav-item mt-2">
+                        <a class="nav-link" id="supportNavBtn" href="#" data-bs-toggle="modal" data-bs-target="#supportModal">
+                            <i class="bi bi-headset me-2"></i>Soporte Técnico
+                        </a>
+                    </li>
+                    <li class="nav-item mt-2">
+                        <a class="nav-link text-white-50" id="logoutBtn" href="#">
+                            <i class="bi bi-box-arrow-left me-2"></i>Cerrar Sesión
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+
+            <!-- Main Content -->
+            <div class="main-content">
+                <!-- Top Bar -->
+                <header class="top-bar p-3 shadow-sm">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <button class="btn btn-outline-danger d-md-none me-2" id="toggleSidebar">
+                                <i class="bi bi-list"></i>
+                            </button>
+                            <span class="fw-bold fs-6" id="pageTitle">Dashboard</span>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-danger" id="currentDateTime"></span>
+                        </div>
+                    </div>
+</header>
+
+                <!-- ===== TICKER / NOTICIERO ===== -->
+                <div class="ticker-bar" id="tickerBar">
+                    <div class="ticker-label">
+                        <i class="bi bi-megaphone-fill me-1"></i>
+                        <span>Aviso</span>
+                    </div>
+<div class="ticker-track">
+                        <div class="ticker-content" id="tickerContent">
+                            <span class="ticker-item"><i class="bi bi-hand-index-thumb me-2"></i>Recuerda: cada vez que vendas algún equipo, regístralo aquí para poder llevar el conteo correcto.</span>
+                            <span class="ticker-item"><i class="bi bi-cart-check-fill me-2"></i>Mantén tu inventario actualizado para un control preciso de tus productos.</span>
+                            <span class="ticker-item"><i class="bi bi-bell-fill me-2"></i>Registra cada venta de equipo para mantener el conteo correcto del inventario.</span>
+                            <span class="ticker-item"><i class="bi bi-hand-index-thumb me-2"></i>Recuerda: cada vez que vendas algún equipo, regístralo aquí para poder llevar el conteo correcto.</span>
+                            <span class="ticker-item"><i class="bi bi-cart-check-fill me-2"></i>Mantén tu inventario actualizado para un control preciso de tus productos.</span>
+                            <span class="ticker-item"><i class="bi bi-bell-fill me-2"></i>Registra cada venta de equipo para mantener el conteo correcto del inventario.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ===== PAGE CONTENT ===== -->
+                <div class="p-3 p-lg-4">
+                    <!-- ===== DASHBOARD PAGE ===== -->
+                    <div id="page-dashboard" class="page-content">
+                        <!-- ===== META TELÉFONOS DEL GOBIERNO ===== -->
+                        <div class="gov-phones-banner mb-4">
+                            <div class="gov-phones-header">
+                                <div class="gov-phones-icon"><i class="bi bi-phone-fill"></i></div>
+                                <div>
+                                    <div class="gov-phones-label"><i class="bi bi-bullseye me-1"></i>Meta del Mes</div>
+                                    <h4 class="gov-phones-title">Teléfonos del Gobierno</h4>
+                                </div>
+                                <div class="gov-phones-count">
+                                    <span id="govPhonesCount">0</span><span class="gov-phones-goal">/30</span>
+                                </div>
+                            </div>
+                            <div class="progress gov-phones-progress">
+                                <div class="progress-bar" id="govPhonesProgressBar" role="progressbar" style="width:0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                            <div class="gov-phones-footer">
+                                <span id="govPhonesStatusText">Aún no se ha registrado ninguno este mes</span>
+                                <span id="govPhonesMonthLabel" class="text-white-50"></span>
+                            </div>
+                        </div>
+
+                        <div class="row g-3 mb-4">
+                            <div class="col-6 col-md-3">
+                                <div class="card stat-card border-0 shadow-sm bg-white">
+                                    <div class="card-body text-center p-3">
+                                        <div class="stat-icon bg-danger bg-opacity-10 text-danger mx-auto mb-2">
+                                            <i class="bi bi-phone"></i>
+                                        </div>
+                                        <h2 class="fw-bold mb-0" id="statTotalProducts">0</h2>
+                                        <small class="text-muted">Total Productos</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="card stat-card border-0 shadow-sm bg-white">
+                                    <div class="card-body text-center p-3">
+                                        <div class="stat-icon bg-success bg-opacity-10 text-success mx-auto mb-2">
+                                            <i class="bi bi-box-seam"></i>
+                                        </div>
+                                        <h2 class="fw-bold mb-0" id="statTotalStock">0</h2>
+                                        <small class="text-muted">Stock Total</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="card stat-card border-0 shadow-sm bg-white">
+                                    <div class="card-body text-center p-3">
+                                        <div class="stat-icon bg-warning bg-opacity-10 text-warning mx-auto mb-2">
+                                            <i class="bi bi-tag"></i>
+                                        </div>
+                                        <h2 class="fw-bold mb-0" id="statTotalValue">Q0.00</h2>
+                                        <small class="text-muted">Valor Total</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="card stat-card border-0 shadow-sm bg-white">
+                                    <div class="card-body text-center p-3">
+                                        <div class="stat-icon bg-info bg-opacity-10 text-info mx-auto mb-2">
+                                            <i class="bi bi-bar-chart"></i>
+                                        </div>
+                                        <h2 class="fw-bold mb-0" id="statCategories">0</h2>
+                                        <small class="text-muted">Categorías</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="card stat-card border-0 shadow-sm bg-white">
+                                    <div class="card-body text-center p-3">
+                                        <div class="stat-icon bg-primary bg-opacity-10 text-primary mx-auto mb-2">
+                                            <i class="bi bi-calculator"></i>
+                                        </div>
+                                        <h2 class="fw-bold mb-0" id="statAvgStock">0</h2>
+                                        <small class="text-muted">Promedio Stock/Prod</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row g-3 mb-4">
+                            <div class="col-12 col-lg-8">
+                                <div class="card border-0 shadow-sm">
+                                    <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center py-3">
+                                        <h6 class="mb-0 fw-bold"><i class="bi bi-graph-up text-danger me-2"></i>Productos por Categoría</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <canvas id="chartCategory" height="250"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-lg-4">
+                                <div class="card border-0 shadow-sm">
+                                    <div class="card-header bg-white border-bottom py-3">
+                                        <h6 class="mb-0 fw-bold"><i class="bi bi-pie-chart text-danger me-2"></i>Distribución</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <canvas id="chartPie" height="250"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-12 col-lg-6">
+                                <div class="card border-0 shadow-sm">
+                                    <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center py-3">
+                                        <h6 class="mb-0 fw-bold"><i class="bi bi-star text-danger me-2"></i>Productos Más Vendidos</h6>
+                                    </div>
+                                    <div class="card-body p-0">
+                                        <div class="table-responsive">
+                                            <table class="table table-hover mb-0">
+                                                <thead class="table-light">
+                                                    <tr>
+                                                        <th>#</th>
+                                                        <th>Producto</th>
+                                                        <th>Categoría</th>
+                                                        <th>Stock</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="topProductsTable">
+                                                    <tr><td colspan="4" class="text-center text-muted py-4">No hay datos disponibles</td></tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-lg-6">
+                                <div class="card border-0 shadow-sm">
+                                    <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center py-3">
+                                        <h6 class="mb-0 fw-bold"><i class="bi bi-clock-history text-danger me-2"></i>Últimos Productos Agregados</h6>
+                                    </div>
+                                    <div class="card-body p-0">
+                                        <div class="table-responsive">
+                                            <table class="table table-hover mb-0">
+                                                <thead class="table-light">
+                                                    <tr>
+                                                        <th>Producto</th>
+                                                        <th>Categoría</th>
+                                                        <th>Precio</th>
+                                                        <th>Fecha</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="recentProductsTable">
+                                                    <tr><td colspan="4" class="text-center text-muted py-4">No hay datos disponibles</td></tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ===== INVENTARIO PAGE ===== -->
+                    <div id="page-inventario" class="page-content d-none">
+                        <div class="card border-0 shadow-sm mb-4">
+                            <div class="card-body p-3 p-lg-4">
+                                <div class="row g-3 align-items-end">
+                                    <div class="col-12 col-md-3">
+                                        <label class="form-label small fw-semibold">Buscar</label>
+                                        <input type="text" class="form-control" id="searchInput" placeholder="Buscar por modelo, color...">
+                                    </div>
+                                    <div class="col-6 col-md-2">
+                                        <label class="form-label small fw-semibold">Categoría</label>
+                                        <select class="form-select" id="filterCategory">
+                                            <option value="all">Todas</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-6 col-md-2">
+                                        <label class="form-label small fw-semibold">Estado</label>
+                                        <select class="form-select" id="filterStatus">
+                                            <option value="all">Todos</option>
+                                            <option value="Nuevo">Nuevo</option>
+                                            <option value="Seminuevo">Seminuevo</option>
+                                            <option value="Usado">Usado</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-6 col-md-2">
+                                        <label class="form-label small fw-semibold">Desde</label>
+                                        <input type="date" class="form-control" id="filterDateFrom">
+                                    </div>
+                                    <div class="col-6 col-md-2">
+                                        <label class="form-label small fw-semibold">Hasta</label>
+                                        <input type="date" class="form-control" id="filterDateTo">
+                                    </div>
+                                    <div class="col-12 col-md-1">
+                                        <button class="btn btn-outline-danger w-100" id="clearFilters" title="Limpiar filtros">
+                                            <i class="bi bi-x-circle"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center py-3">
+                                <h6 class="mb-0 fw-bold"><i class="bi bi-phone me-2 text-danger"></i>Inventario de Celulares</h6>
+<div class="d-flex gap-2 flex-wrap">
+                                    <button class="btn btn-outline-danger btn-sm" id="printInventoryBtn" title="Imprimir como recibo">
+                                        <i class="bi bi-printer me-1"></i>Imprimir
+                                    </button>
+                                    <button class="btn btn-outline-danger btn-sm" id="exportPdfBtn">
+                                        <i class="bi bi-file-pdf me-1"></i>PDF
+                                    </button>
+                                    <button class="btn btn-outline-danger btn-sm" id="copyTextBtn">
+                                        <i class="bi bi-clipboard me-1"></i>Copiar
+                                    </button>
+                                    <button class="btn btn-danger btn-sm" id="addProductBtn">
+                                        <i class="bi bi-plus-lg me-1"></i>Agregar
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="card-body p-0">
+                                <div class="table-responsive">
+                                    <table class="table table-hover mb-0" id="inventoryTable">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>#</th>
+                                                <th>Modelo</th>
+                                                <th>Categoría</th>
+                                                <th>IVU (Q)</th>
+                                                <th>Color</th>
+                                                <th>Almacenamiento</th>
+                                                <th>Precio (Q)</th>
+                                                <th class="cost-col d-none">Costo (Q)</th>
+                                                <th>Stock</th>
+                                                <th>Stock Mín.</th>
+                                                <th>Estado</th>
+                                                <th>Fecha Ingreso</th>
+                                                <th>Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="inventoryBody">
+                                            <tr><td colspan="13" class="text-center text-muted py-5">
+                                                <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                                                No hay productos registrados
+                                            </td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div class="card-footer bg-white border-top p-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <small class="text-muted" id="productCount">0 productos</small>
+                                    <nav>
+                                        <ul class="pagination pagination-sm mb-0" id="pagination">
+                                            <li class="page-item disabled"><a class="page-link" href="#">«</a></li>
+                                            <li class="page-item active"><a class="page-link" href="#">1</a></li>
+                                            <li class="page-item disabled"><a class="page-link" href="#">»</a></li>
+                                        </ul>
+                                    </nav>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ===== ACCESORIOS PAGE ===== -->
+                    <div id="page-accesorios" class="page-content d-none">
+                        <div class="card border-0 shadow-sm mb-4">
+                            <div class="card-body p-3 p-lg-4">
+                                <div class="row g-3 align-items-end">
+                                    <div class="col-12 col-md-4">
+                                        <label class="form-label small fw-semibold">Buscar Accesorio</label>
+                                        <input type="text" class="form-control" id="searchAccInput" placeholder="Buscar por nombre, color...">
+                                    </div>
+                                    <div class="col-6 col-md-3">
+                                        <label class="form-label small fw-semibold">Tipo</label>
+                                        <select class="form-select" id="filterAccCategory">
+                                            <option value="all">Todos</option>
+                                            <option value="Cargadores">Cargadores</option>
+                                            <option value="Protectores">Protectores</option>
+                                            <option value="Chips SIM">Chips SIM</option>
+                                            <option value="Cases">Cases</option>
+                                            <option value="Cables">Cables</option>
+                                            <option value="Adaptadores">Adaptadores</option>
+                                            <option value="Templates">Templates</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-6 col-md-3">
+                                        <label class="form-label small fw-semibold">Desde</label>
+                                        <input type="date" class="form-control" id="filterAccDateFrom">
+                                    </div>
+                                    <div class="col-6 col-md-2">
+                                        <label class="form-label small fw-semibold">Hasta</label>
+                                        <input type="date" class="form-control" id="filterAccDateTo">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center py-3">
+                                <h6 class="mb-0 fw-bold"><i class="bi bi-tools me-2 text-danger"></i>Inventario de Accesorios</h6>
+                                <div class="d-flex gap-2 flex-wrap">
+                                    <button class="btn btn-outline-danger btn-sm" id="printAccesoriesBtn" title="Imprimir como recibo">
+                                        <i class="bi bi-printer me-1"></i>Imprimir
+                                    </button>
+                                    <button class="btn btn-outline-danger btn-sm" id="exportAccPdfBtn">
+                                        <i class="bi bi-file-pdf me-1"></i>PDF
+                                    </button>
+                                    <button class="btn btn-outline-danger btn-sm" id="copyAccTextBtn">
+                                        <i class="bi bi-clipboard me-1"></i>Copiar
+                                    </button>
+                                    <button class="btn btn-danger btn-sm" id="addAccBtn">
+                                        <i class="bi bi-plus-lg me-1"></i>Agregar Accesorio
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="card-body p-0">
+                                <div class="table-responsive">
+                                    <table class="table table-hover mb-0" id="accesoriosTable">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>#</th>
+                                                <th>Producto</th>
+                                                <th>Tipo</th>
+                                                <th>Color</th>
+                                                <th>Precio (Q)</th>
+                                                <th>Stock</th>
+                                                <th>Fecha Ingreso</th>
+                                                <th>Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="accesoriosBody">
+                                            <tr><td colspan="8" class="text-center text-muted py-5">
+                                                <i class="bi bi-tools fs-1 d-block mb-2"></i>
+                                                No hay accesorios registrados
+                                            </td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div class="card-footer bg-white border-top p-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <small class="text-muted" id="accCount">0 accesorios</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+<!-- ===== INVENTARIO GENERAL PAGE ===== -->
+                    <div id="page-inventario-general" class="page-content d-none">
+                        <div class="card border-0 shadow-sm mb-4">
+                            <div class="card-body p-3 p-lg-4">
+                                <div class="row g-3 align-items-end">
+                                    <div class="col-12 col-md-4">
+                                        <label class="form-label small fw-semibold">Buscar</label>
+                                        <input type="text" class="form-control" id="searchSupplies" placeholder="Buscar por nombre, categoría...">
+                                    </div>
+                                    <div class="col-6 col-md-3">
+                                        <label class="form-label small fw-semibold">Categoría</label>
+                                        <select class="form-select" id="filterSuppliesCategory">
+                                            <option value="all">Todas</option>
+                                            <option value="Papelería">Papelería</option>
+                                            <option value="Tinta">Tinta</option>
+                                            <option value="Oficina">Oficina</option>
+                                            <option value="Equipo">Equipo</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-6 col-md-3">
+                                        <label class="form-label small fw-semibold">Estado</label>
+                                        <select class="form-select" id="filterSuppliesStatus">
+                                            <option value="all">Todos</option>
+                                            <option value="bajo">Stock Bajo</option>
+                                            <option value="ok">Stock OK</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 col-md-2">
+                                        <button class="btn btn-danger w-100" id="addSupplyBtn">
+                                            <i class="bi bi-plus-lg me-1"></i>Agregar
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center py-3">
+                                <h6 class="mb-0 fw-bold"><i class="bi bi-boxes me-2 text-danger"></i>Inventario General - Oficina y Suministros</h6>
+                                <div class="d-flex gap-2 flex-wrap">
+                                    <button class="btn btn-outline-danger btn-sm" id="printSuppliesBtn" title="Imprimir como recibo">
+                                        <i class="bi bi-printer me-1"></i>Imprimir
+                                    </button>
+                                    <button class="btn btn-outline-danger btn-sm" id="exportSuppliesPdfBtn">
+                                        <i class="bi bi-file-pdf me-1"></i>PDF
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="card-body p-0">
+                                <div class="table-responsive">
+                                    <table class="table table-hover mb-0" id="suppliesTable">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>#</th>
+                                                <th>Producto</th>
+                                                <th>Categoría</th>
+                                                <th>Cantidad</th>
+                                                <th>Unidad</th>
+                                                <th>Stock Mínimo</th>
+                                                <th>Estado</th>
+                                                <th>Notas</th>
+                                                <th>Última Actualización</th>
+                                                <th>Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="suppliesBody">
+                                            <tr><td colspan="10" class="text-center text-muted py-5">
+                                                <i class="bi bi-boxes fs-1 d-block mb-2"></i>
+                                                No hay suministros registrados
+                                            </td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div class="card-footer bg-white border-top p-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <small class="text-muted" id="suppliesCount">0 suministros</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ===== HORARIOS PAGE ===== -->
+                    <div id="page-horarios" class="page-content d-none">
+                        <div class="card border-0 shadow-sm mb-4">
+                            <div class="card-body p-3 p-lg-4">
+                                <div class="row g-3 align-items-end">
+                                    <div class="col-12 col-md-4">
+                                        <label class="form-label small fw-semibold">Buscar Empleado</label>
+                                        <input type="text" class="form-control" id="searchSchedule" placeholder="Buscar por nombre...">
+                                    </div>
+                                    <div class="col-6 col-md-3">
+                                        <label class="form-label small fw-semibold">Día</label>
+                                        <select class="form-select" id="filterScheduleDay">
+                                            <option value="all">Todos</option>
+                                            <option value="Domingo">Domingo</option>
+                                            <option value="Lunes">Lunes</option>
+                                            <option value="Martes">Martes</option>
+                                            <option value="Miércoles">Miércoles</option>
+                                            <option value="Jueves">Jueves</option>
+                                            <option value="Viernes">Viernes</option>
+                                            <option value="Sábado">Sábado</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 col-md-2">
+                                        <button class="btn btn-danger w-100" id="addScheduleBtn">
+                                            <i class="bi bi-plus-lg me-1"></i>Agregar
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-header bg-white border-bottom py-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <h6 class="mb-0 fw-bold"><i class="bi bi-calendar-month me-2 text-danger"></i>Horarios de Empleados</h6>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <button class="btn btn-sm btn-outline-danger" id="schedulePrevMonth" type="button">
+                                            <i class="bi bi-chevron-left"></i>
+                                        </button>
+                                        <span class="fw-bold small text-nowrap" id="scheduleMonthYear" style="min-width:120px;text-align:center;"></span>
+                                        <button class="btn btn-sm btn-outline-danger" id="scheduleNextMonth" type="button">
+                                            <i class="bi bi-chevron-right"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-body p-3">
+                                <div id="scheduleCalendar" class="schedule-calendar"></div>
+                            </div>
+                            <div class="card-footer bg-white border-top p-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <small class="text-muted" id="scheduleCount">0 registros</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ===== VENTAS PAGE ===== -->
+                    <div id="page-ventas" class="page-content d-none">
+                        <ul class="nav nav-tabs mb-3" id="ventasTabs">
+                            <li class="nav-item">
+                                <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#ventasTabNueva" type="button">
+                                    <i class="bi bi-cart-plus me-1"></i>Nueva Venta
+                                </button>
+                            </li>
+                            <li class="nav-item">
+                                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#ventasTabHistorial" type="button">
+                                    <i class="bi bi-receipt-cutoff me-1"></i>Historial de Ventas
+                                </button>
+                            </li>
+                            <li class="nav-item" id="ventasTabCuadreItem">
+                                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#ventasTabCuadre" type="button">
+                                    <i class="bi bi-cash-coin me-1"></i>Cuadre de Caja
+                                </button>
+                            </li>
+                        </ul>
+
+                        <div class="tab-content">
+                            <!-- ---- Nueva Venta (carrito) ---- -->
+                            <div class="tab-pane fade show active" id="ventasTabNueva">
+                                <div class="row g-3">
+                                    <div class="col-12 col-lg-7">
+                                        <div class="card border-0 shadow-sm">
+                                            <div class="card-header bg-white border-bottom py-3">
+                                                <h6 class="mb-0 fw-bold"><i class="bi bi-search me-2 text-danger"></i>Buscar Producto</h6>
+                                            </div>
+                                            <div class="card-body">
+                                                <input type="text" class="form-control" id="posSearchInput" placeholder="Buscar por modelo, categoría, color...">
+                                                <div id="posSearchResults" class="pos-search-results mt-2">
+                                                    <div class="text-center text-muted py-4 small">Escribe para buscar productos del inventario</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-12 col-lg-5">
+                                        <div class="card border-0 shadow-sm">
+                                            <div class="card-header bg-white border-bottom py-3">
+                                                <h6 class="mb-0 fw-bold"><i class="bi bi-cart3 me-2 text-danger"></i>Carrito</h6>
+                                            </div>
+                                            <div class="card-body p-0">
+                                                <div id="posCartBody" class="pos-cart-body">
+                                                    <div class="text-center text-muted py-4"><i class="bi bi-cart-x fs-2 d-block mb-2"></i>Carrito vacío</div>
+                                                </div>
+                                            </div>
+                                            <div class="card-footer bg-white border-top p-3">
+                                                <div class="mb-2">
+                                                    <label class="form-label small fw-semibold">Cliente</label>
+                                                    <input type="text" class="form-control form-control-sm" id="posCustomer" placeholder="Nombre del cliente (opcional)">
+                                                </div>
+                                                <div class="mb-2">
+                                                    <label class="form-label small fw-semibold">Nota para el recibo</label>
+                                                    <textarea class="form-control form-control-sm" id="posReceiptNote" rows="2" placeholder="Ej: Garantía 30 días, pagado con tarjeta..."></textarea>
+                                                </div>
+                                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                                    <strong>Total:</strong>
+                                                    <strong class="text-danger fs-5" id="posCartTotal">Q0.00</strong>
+                                                </div>
+                                                <button class="btn btn-danger w-100 fw-bold" id="posCompleteSaleBtn" disabled>
+                                                    <i class="bi bi-check-circle me-1"></i>Completar Venta
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- ---- Historial de Ventas ---- -->
+                            <div class="tab-pane fade" id="ventasTabHistorial">
+                                <div class="card border-0 shadow-sm mb-3">
+                                    <div class="card-body p-3">
+                                        <div class="row g-3 align-items-end">
+                                            <div class="col-12 col-md-3">
+                                                <label class="form-label small fw-semibold">Buscar</label>
+                                                <input type="text" class="form-control" id="searchSalesInput" placeholder="Producto o cliente...">
+                                            </div>
+                                            <div class="col-6 col-md-3">
+                                                <label class="form-label small fw-semibold">Vendedor</label>
+                                                <select class="form-select" id="filterSalesSeller">
+                                                    <option value="all">Todos</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-6 col-md-2">
+                                                <label class="form-label small fw-semibold">Desde</label>
+                                                <input type="date" class="form-control" id="filterSalesFrom">
+                                            </div>
+                                            <div class="col-6 col-md-2">
+                                                <label class="form-label small fw-semibold">Hasta</label>
+                                                <input type="date" class="form-control" id="filterSalesTo">
+                                            </div>
+                                            <div class="col-6 col-md-2">
+                                                <button class="btn btn-outline-danger w-100" id="clearSalesFilters" title="Limpiar filtros">
+                                                    <i class="bi bi-x-circle"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="card border-0 shadow-sm">
+                                    <div class="card-header bg-white border-bottom py-3">
+                                        <h6 class="mb-0 fw-bold"><i class="bi bi-receipt-cutoff me-2 text-danger"></i>Ventas Registradas</h6>
+                                    </div>
+                                    <div class="card-body p-0">
+                                        <div class="table-responsive">
+                                            <table class="table table-hover mb-0" id="salesTable">
+                                                <thead class="table-light">
+                                                    <tr>
+                                                        <th>#</th>
+                                                        <th>Fecha</th>
+                                                        <th>Hora</th>
+                                                        <th>Producto</th>
+                                                        <th>Cantidad</th>
+                                                        <th>Precio (Q)</th>
+                                                        <th>Total (Q)</th>
+                                                        <th>Cliente</th>
+                                                        <th>Vendedor</th>
+                                                        <th>Recibo</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="salesBody">
+                                                    <tr><td colspan="10" class="text-center text-muted py-5">
+                                                        <i class="bi bi-receipt-cutoff fs-1 d-block mb-2"></i>
+                                                        No hay ventas registradas
+                                                    </td></tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                    <div class="card-footer bg-white border-top p-3">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <small class="text-muted" id="salesCount">0 registros</small>
+                                            <div>
+                                                <strong class="text-danger">Total Ventas:</strong> <span id="salesTotalValue">Q0.00</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- ---- Cuadre de Caja ---- -->
+                            <div class="tab-pane fade" id="ventasTabCuadre">
+                                <div class="row g-3 mb-3">
+                                    <div class="col-6 col-md-3">
+                                        <div class="card stat-card border-0 shadow-sm bg-white">
+                                            <div class="card-body text-center p-3">
+                                                <div class="stat-icon bg-success bg-opacity-10 text-success mx-auto mb-2"><i class="bi bi-cash-stack"></i></div>
+                                                <h4 class="fw-bold mb-0" id="cuadreExpectedToday">Q0.00</h4>
+                                                <small class="text-muted">Ventas de Hoy</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-3">
+                                        <div class="card stat-card border-0 shadow-sm bg-white">
+                                            <div class="card-body text-center p-3">
+                                                <div class="stat-icon bg-info bg-opacity-10 text-info mx-auto mb-2"><i class="bi bi-receipt"></i></div>
+                                                <h4 class="fw-bold mb-0" id="cuadreTicketsToday">0</h4>
+                                                <small class="text-muted">Tickets de Hoy</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row g-3">
+                                    <div class="col-12 col-lg-7">
+                                        <div class="card border-0 shadow-sm mb-3">
+                                            <div class="card-header bg-white border-bottom py-3">
+                                                <h6 class="mb-0 fw-bold"><i class="bi bi-cash-coin me-2 text-danger"></i>Conteo de Efectivo</h6>
+                                            </div>
+                                            <div class="card-body">
+                                                <small class="text-muted fw-semibold d-block mb-2">BILLETES</small>
+                                                <div class="row g-2 mb-3" id="cuadreBillsContainer"></div>
+                                                <small class="text-muted fw-semibold d-block mb-2">MONEDAS</small>
+                                                <div class="row g-2 mb-3" id="cuadreCoinsContainer"></div>
+                                                <div class="mb-3">
+                                                    <label class="form-label small fw-semibold">Nota</label>
+                                                    <textarea class="form-control" id="cuadreNote" rows="2" placeholder="Notas del cuadre (opcional)"></textarea>
+                                                </div>
+                                                <div class="d-flex justify-content-between align-items-center border-top pt-3">
+                                                    <strong>Total Contado:</strong>
+                                                    <strong class="text-success fs-4" id="cuadreTotalCounted">Q0.00</strong>
+                                                </div>
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <strong>Diferencia vs Ventas de Hoy:</strong>
+                                                    <strong id="cuadreDifference">Q0.00</strong>
+                                                </div>
+                                                <button class="btn btn-danger w-100 fw-bold mt-3" id="saveCuadreBtn">
+                                                    <i class="bi bi-save me-1"></i>Guardar Cuadre
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-12 col-lg-5">
+                                        <div class="card border-0 shadow-sm">
+                                            <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                                <h6 class="mb-0 fw-bold"><i class="bi bi-clock-history me-2 text-danger"></i>Historial de Cuadres</h6>
+                                                <input type="date" class="form-control form-control-sm" id="filterCuadreDate" style="max-width:160px">
+                                            </div>
+                                            <div class="card-body p-0">
+                                                <div class="table-responsive">
+                                                    <table class="table table-hover table-sm mb-0">
+                                                        <thead class="table-light">
+                                                            <tr><th>Fecha</th><th>Usuario</th><th>Contado</th><th>Dif.</th><th></th></tr>
+                                                        </thead>
+                                                        <tbody id="cuadreHistoryBody">
+                                                            <tr><td colspan="5" class="text-center text-muted py-4 small">Sin cuadres registrados</td></tr>
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Cuadre Detail Modal -->
+                    <div class="modal fade" id="cuadreDetailModal" tabindex="-1">
+                        <div class="modal-dialog modal-dialog-centered">
+                            <div class="modal-content border-0">
+                                <div class="modal-header bg-danger text-white">
+                                    <h6 class="modal-title fw-bold"><i class="bi bi-cash-coin me-2"></i>Detalle de Cuadre</h6>
+                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body p-4" id="cuadreDetailBody"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ===== COMPRAS PAGE ===== -->
+                    <div id="page-compras" class="page-content d-none">
+                        <div class="row g-3">
+                            <div class="col-12 col-lg-7">
+                                <div class="card border-0 shadow-sm">
+                                    <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center py-3">
+                                        <h6 class="mb-0 fw-bold"><i class="bi bi-cart-plus-fill me-2 text-danger"></i>Para Encargar (Agotados)</h6>
+                                        <span class="badge bg-danger" id="comprasPendingCount">0</span>
+                                    </div>
+                                    <div class="card-body p-3">
+                                        <p class="small text-muted mb-3">El sistema revisa automáticamente cada 10 minutos si algún producto se agotó y lo agrega aquí para que se pueda encargar.</p>
+                                        <div id="comprasPendingList"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-lg-5">
+                                <div class="card border-0 shadow-sm">
+                                    <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center py-3">
+                                        <h6 class="mb-0 fw-bold"><i class="bi bi-exclamation-triangle-fill me-2 text-warning"></i>Por Acabarse (Stock Bajo)</h6>
+                                        <span class="badge badge-stock-medium" id="comprasLowStockCount">0</span>
+                                    </div>
+                                    <div class="card-body p-3">
+                                        <p class="small text-muted mb-3">Productos que todavía tienen existencia, pero ya llegaron o están cerca de su stock mínimo.</p>
+                                        <div id="comprasLowStockList"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ===== HISTORIAL PAGE ===== -->
+                    <div id="page-historial" class="page-content d-none">
+                        <div class="card border-0 shadow-sm mb-4">
+                            <div class="card-body p-3 p-lg-4">
+                                <div class="row g-3 align-items-end">
+                                    <div class="col-12 col-md-4">
+                                        <label class="form-label small fw-semibold">Buscar en Historial</label>
+                                        <input type="text" class="form-control" id="searchHistory" placeholder="Buscar...">
+                                    </div>
+                                    <div class="col-6 col-md-3">
+                                        <label class="form-label small fw-semibold">Desde</label>
+                                        <input type="date" class="form-control" id="filterHistoryFrom">
+                                    </div>
+                                    <div class="col-6 col-md-3">
+                                        <label class="form-label small fw-semibold">Hasta</label>
+                                        <input type="date" class="form-control" id="filterHistoryTo">
+                                    </div>
+                                    <div class="col-12 col-md-2">
+                                        <button class="btn btn-outline-danger w-100" id="clearHistoryBtn">
+                                            <i class="bi bi-trash me-1"></i>Limpiar
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-header bg-white border-bottom py-3">
+                                <h6 class="mb-0 fw-bold"><i class="bi bi-clock-history me-2 text-danger"></i>Historial de Actividad</h6>
+                            </div>
+                            <div class="card-body p-0">
+                                <div class="table-responsive">
+                                    <table class="table table-hover mb-0" id="historyTable">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>#</th>
+                                                <th>Fecha/Hora</th>
+                                                <th>Usuario</th>
+                                                <th>Acción</th>
+                                                <th>Detalle</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="historyBody">
+                                            <tr><td colspan="5" class="text-center text-muted py-5">
+                                                <i class="bi bi-clock-history fs-1 d-block mb-2"></i>
+                                                No hay historial registrado
+                                            </td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div class="card-footer bg-white border-top p-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <small class="text-muted" id="historyCount">0 registros</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ===== SQL EDITOR PAGE ===== -->
+                    <div id="page-sql-editor" class="page-content d-none">
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center py-3">
+                                <h6 class="mb-0 fw-bold"><i class="bi bi-terminal me-2 text-danger"></i>Editor SQL</h6>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-outline-danger btn-sm" id="clearSqlBtn" title="Limpiar consulta">
+                                        <i class="bi bi-x-circle me-1"></i>Limpiar
+                                    </button>
+                                    <button class="btn btn-danger btn-sm" id="runSqlBtn">
+                                        <i class="bi bi-play-fill me-1"></i>Ejecutar
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="card-body p-3 p-lg-4">
+                                <div class="mb-3">
+                                    <label class="form-label small fw-semibold">Consulta SQL</label>
+                                    <textarea class="form-control font-monospace" id="sqlQueryInput" rows="6" placeholder="Escribe tu consulta SQL aquí...&#10;Ejemplo: SELECT * FROM users WHERE role = 'Administrador'" style="font-size: 0.9rem; resize: vertical;"></textarea>
+                                </div>
+                                <div id="sqlError" class="alert alert-danger d-none small py-2"></div>
+                                <div id="sqlSuccess" class="alert alert-success d-none small py-2"></div>
+                                <div class="mb-2">
+                                    <small class="text-muted fw-semibold">Tablas disponibles: users, products, supplies, schedule, sales, history</small>
+                                </div>
+                                <div class="table-responsive" id="sqlResultsContainer" style="display:none;">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <small class="text-muted" id="sqlResultCount"></small>
+                                    </div>
+                                    <table class="table table-hover table-bordered mb-0" id="sqlResultsTable">
+                                        <thead class="table-light" id="sqlResultsHead"></thead>
+                                        <tbody id="sqlResultsBody"></tbody>
+                                    </table>
+                                </div>
+                                <div id="sqlNoResults" class="text-center text-muted py-4 d-none">
+                                    <i class="bi bi-check2-circle fs-1 d-block mb-2 text-success"></i>
+                                    <p class="mb-0">Consulta ejecutada correctamente (sin resultados para mostrar)</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- ===== ACTUALIZACIONES PAGE (disponible para todos) ===== -->
+                    <div id="page-actualizaciones" class="page-content d-none">
+                        <div class="card border-0 shadow-sm mb-4">
+                            <div class="card-body p-4 text-center">
+                                <i class="bi bi-megaphone text-danger fs-1 d-block mb-2"></i>
+                                <h5 class="fw-bold mb-1">Novedades del Sistema</h5>
+                                <p class="text-muted small mb-0">Aquí puedes ver qué se ha actualizado en XTREME MOBILE y para qué sirve cada función nueva.</p>
+                            </div>
+                        </div>
+
+                        <div class="card border-0 shadow-sm update-card">
+                            <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center py-3 flex-wrap gap-2">
+                                <h6 class="mb-0 fw-bold"><i class="bi bi-rocket-takeoff me-2 text-danger"></i>Versión 1.0.0 — Primera versión</h6>
+                                <span class="badge bg-danger" id="updatesVersionDate"></span>
+                            </div>
+                            <div class="card-body p-4">
+                                <p class="small text-muted">Lanzamiento inicial del sistema con el rediseño completo del área de Ventas y el nuevo sistema de permisos por usuario.</p>
+                                <div class="update-feature">
+                                    <i class="bi bi-cart-check text-danger"></i>
+                                    <div>
+                                        <div class="fw-bold small">Ventas rediseñada por completo</div>
+                                        <div class="small text-muted">Carrito para buscar y añadir varios productos a la vez, historial de ventas filtrable por fecha y vendedor, y Cuadre de Caja con conteo de billetes y monedas comparado contra las ventas del día.</div>
+                                    </div>
+                                </div>
+                                <div class="update-feature">
+                                    <i class="bi bi-receipt text-danger"></i>
+                                    <div>
+                                        <div class="fw-bold small">Nota en el recibo</div>
+                                        <div class="small text-muted">Ahora puedes escribir una nota (garantía, forma de pago, etc.) que se imprime en el recibo de cada venta.</div>
+                                    </div>
+                                </div>
+                                <div class="update-feature">
+                                    <i class="bi bi-cash-coin text-danger"></i>
+                                    <div>
+                                        <div class="fw-bold small">Costo del Equipo</div>
+                                        <div class="small text-muted">Nuevo campo para registrar el costo interno de cada equipo, visible solo para los roles autorizados.</div>
+                                    </div>
+                                </div>
+                                <div class="update-feature">
+                                    <i class="bi bi-bullseye text-danger"></i>
+                                    <div>
+                                        <div class="fw-bold small">Meta de Teléfonos del Gobierno</div>
+                                        <div class="small text-muted">Nuevo panel destacado en el Dashboard que muestra cuántos Teléfonos del Gobierno se han entregado este mes, con una meta de 30 unidades.</div>
+                                    </div>
+                                </div>
+                                <div class="update-feature">
+                                    <i class="bi bi-star-fill text-warning"></i>
+                                    <div>
+                                        <div class="fw-bold small">Empleado del Mes</div>
+                                        <div class="small text-muted">Una estrella aparece automáticamente junto al nombre del vendedor con más ventas (en Q) del mes, tanto en el menú lateral como en Usuarios.</div>
+                                    </div>
+                                </div>
+                                <div class="update-feature">
+                                    <i class="bi bi-shield-lock text-danger"></i>
+                                    <div>
+                                        <div class="fw-bold small">Áreas de Usuarios (Roles y Permisos)</div>
+                                        <div class="small text-muted">El Administrador de Programación ahora puede crear roles personalizados y dar o quitar acceso a cada área y función del sistema, usuario por usuario.</div>
+                                    </div>
+                                </div>
+                                <div class="update-feature">
+                                    <i class="bi bi-headset text-danger"></i>
+                                    <div>
+                                        <div class="fw-bold small">Soporte Técnico</div>
+                                        <div class="small text-muted">Preguntas frecuentes, formulario para reportar problemas (incluyendo contraseña olvidada) y horarios de servicio de Angel Tech Solutions.</div>
+                                    </div>
+                                </div>
+                                <div class="update-feature">
+                                    <i class="bi bi-exclamation-triangle text-warning"></i>
+                                    <div>
+                                        <div class="fw-bold small">Aviso de Stock Bajo Próximo</div>
+                                        <div class="small text-muted">El stock se muestra en color naranja cuando el producto está a punto de llegar al nivel de stock bajo.</div>
+                                    </div>
+                                </div>
+                                <div class="update-feature">
+                                    <i class="bi bi-card-text text-danger"></i>
+                                    <div>
+                                        <div class="fw-bold small">IVU en lugar de IMEI</div>
+                                        <div class="small text-muted">El campo del equipo ahora se identifica como "IVU" en todo el sistema.</div>
+                                    </div>
+                                </div>
+                                <div class="update-feature">
+                                    <i class="bi bi-image text-danger"></i>
+                                    <div>
+                                        <div class="fw-bold small">Favicon oficial</div>
+                                        <div class="small text-muted">El ícono de la pestaña del navegador ahora muestra el logo de XTREME MOBILE.</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ===== USUARIOS PAGE ===== -->
+                    <div id="page-usuarios" class="page-content d-none">
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center py-3">
+                                <h6 class="mb-0 fw-bold"><i class="bi bi-people me-2 text-danger"></i>Usuarios del Sistema</h6>
+                                <button class="btn btn-danger btn-sm" id="addUserBtn">
+                                    <i class="bi bi-person-plus me-1"></i>Nuevo Usuario
+                                </button>
+                            </div>
+                            <div class="card-body p-0">
+                                <div class="table-responsive">
+                                    <table class="table table-hover mb-0">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>#</th>
+                                                <th>Nombre Completo</th>
+                                                <th>Usuario</th>
+                                                <th>Correo</th>
+                                                <th>Rol</th>
+                                                <th>Fecha Registro</th>
+                                                <th>Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="usersTableBody">
+                                            <tr><td colspan="7" class="text-center text-muted py-5">
+                                                <i class="bi bi-people fs-1 d-block mb-2"></i>
+                                                No hay usuarios registrados
+                                            </td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ===== AREAS DE USUARIOS PAGE (solo Angel) ===== -->
+                    <div id="page-areas-usuarios" class="page-content d-none">
+                        <ul class="nav nav-tabs mb-3">
+                            <li class="nav-item">
+                                <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#areasTabUsuarios" type="button">
+                                    <i class="bi bi-person-gear me-1"></i>Usuarios y Accesos
+                                </button>
+                            </li>
+                            <li class="nav-item">
+                                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#areasTabRoles" type="button">
+                                    <i class="bi bi-diagram-3 me-1"></i>Gestión de Roles
+                                </button>
+                            </li>
+                        </ul>
+                        <div class="tab-content">
+                            <!-- ---- Usuarios y Accesos ---- -->
+                            <div class="tab-pane fade show active" id="areasTabUsuarios">
+                                <div class="card border-0 shadow-sm mb-3">
+                                    <div class="card-body p-3">
+                                        <label class="form-label small fw-semibold">Selecciona un usuario</label>
+                                        <select class="form-select" id="areasUserSelect">
+                                            <option value="">Seleccionar usuario...</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div id="areasUserPanel" class="d-none">
+                                    <div class="card border-0 shadow-sm mb-3">
+                                        <div class="card-body p-3">
+                                            <label class="form-label small fw-semibold">Rol asignado</label>
+                                            <select class="form-select" id="areasUserRoleSelect"></select>
+                                        </div>
+                                    </div>
+                                    <div class="card border-0 shadow-sm mb-3">
+                                        <div class="card-header bg-white border-bottom py-3">
+                                            <h6 class="mb-0 fw-bold"><i class="bi bi-grid-3x3-gap me-2 text-danger"></i>Acceso a Áreas</h6>
+                                        </div>
+                                        <div class="card-body p-3">
+                                            <div id="areasUserAreasGrid" class="permissions-grid"></div>
+                                        </div>
+                                    </div>
+                                    <div class="card border-0 shadow-sm mb-3">
+                                        <div class="card-header bg-white border-bottom py-3">
+                                            <h6 class="mb-0 fw-bold"><i class="bi bi-key me-2 text-danger"></i>Permisos Especiales</h6>
+                                        </div>
+                                        <div class="card-body p-3">
+                                            <div id="areasUserCapsGrid" class="permissions-grid"></div>
+                                        </div>
+                                    </div>
+                                    <button class="btn btn-danger fw-bold" id="saveAreasUserBtn">
+                                        <i class="bi bi-check-lg me-1"></i>Guardar Cambios
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- ---- Gestión de Roles ---- -->
+                            <div class="tab-pane fade" id="areasTabRoles">
+                                <div class="row g-3">
+                                    <div class="col-12 col-lg-4">
+                                        <div class="card border-0 shadow-sm">
+                                            <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                                                <h6 class="mb-0 fw-bold"><i class="bi bi-diagram-3 me-2 text-danger"></i>Roles</h6>
+                                                <button class="btn btn-danger btn-sm" id="addRoleBtn"><i class="bi bi-plus-lg"></i></button>
+                                            </div>
+                                            <div class="card-body p-0">
+                                                <div id="rolesListContainer" class="list-group list-group-flush"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-12 col-lg-8">
+                                        <div id="rolesEditorPanel" class="d-none">
+                                            <div class="card border-0 shadow-sm mb-3">
+                                                <div class="card-body p-3">
+                                                    <label class="form-label small fw-semibold">Nombre del Rol</label>
+                                                    <input type="text" class="form-control" id="roleNameInput" placeholder="Ej: Supervisor de Turno">
+                                                </div>
+                                            </div>
+                                            <div class="card border-0 shadow-sm mb-3">
+                                                <div class="card-header bg-white border-bottom py-3">
+                                                    <h6 class="mb-0 fw-bold"><i class="bi bi-grid-3x3-gap me-2 text-danger"></i>Acceso a Áreas</h6>
+                                                </div>
+                                                <div class="card-body p-3">
+                                                    <div id="roleAreasGrid" class="permissions-grid"></div>
+                                                </div>
+                                            </div>
+                                            <div class="card border-0 shadow-sm mb-3">
+                                                <div class="card-header bg-white border-bottom py-3">
+                                                    <h6 class="mb-0 fw-bold"><i class="bi bi-key me-2 text-danger"></i>Permisos Especiales</h6>
+                                                </div>
+                                                <div class="card-body p-3">
+                                                    <div id="roleCapsGrid" class="permissions-grid"></div>
+                                                </div>
+                                            </div>
+                                            <div class="d-flex gap-2">
+                                                <button class="btn btn-danger fw-bold" id="saveRoleBtn">
+                                                    <i class="bi bi-check-lg me-1"></i>Guardar Rol
+                                                </button>
+                                                <button class="btn btn-outline-danger fw-bold" id="deleteRoleBtn">
+                                                    <i class="bi bi-trash me-1"></i>Eliminar Rol
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div id="rolesEditorEmpty" class="text-center text-muted py-5">
+                                            <i class="bi bi-diagram-3 fs-1 d-block mb-2"></i>
+                                            Selecciona un rol para editarlo, o crea uno nuevo
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ MODALS ============ -->
+
+    <!-- Product Modal -->
+    <div class="modal fade" id="productModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content border-0">
+                <div class="modal-header bg-danger text-white">
+                    <h6 class="modal-title fw-bold" id="productModalTitle"><i class="bi bi-plus-circle me-2"></i>Agregar Producto</h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <form id="productForm">
+                        <input type="hidden" id="productId">
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label small fw-semibold">Categoría <span class="text-danger">*</span></label>
+                                <select class="form-select" id="productCategory" required>
+                                    <option value="">Seleccione...</option>
+                                    <option value="ANDROID">ANDROID</option>
+                                    <option value="IPHONE">IPHONE</option>
+                                    <option value="INTERNET">INTERNET</option>
+                                    <option value="GALAXY WATCH">GALAXY WATCH</option>
+                                    <option value="APPLE WATCH">APPLE WATCH</option>
+                                    <option value="AUDIFONOS">AUDIFONOS</option>
+                                    <option value="ACCESORIOS">ACCESORIOS</option>
+                                    <option value="TELEFONOS DEL GOBIERNO">TELEFONOS DEL GOBIERNO</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label small fw-semibold">Modelo <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="productModel" placeholder="Ej: Galaxy S24 Ultra" required>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label small fw-semibold">IVU (Q) <small class="text-muted fw-normal">- monto que paga el cliente para sacar el equipo</small></label>
+                                <input type="number" class="form-control" id="productImei" placeholder="0.00" min="0" step="0.01">
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label small fw-semibold">Color</label>
+                                <input type="text" class="form-control" id="productColor" placeholder="Ej: Negro, Blanco...">
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <label class="form-label small fw-semibold">Almacenamiento</label>
+                                <select class="form-select" id="productStorage">
+                                    <option value="">Seleccione...</option>
+                                    <option value="8GB">8 GB</option>
+                                    <option value="16GB">16 GB</option>
+                                    <option value="32GB">32 GB</option>
+                                    <option value="64GB">64 GB</option>
+                                    <option value="128GB">128 GB</option>
+                                    <option value="256GB">256 GB</option>
+                                    <option value="512GB">512 GB</option>
+                                    <option value="1TB">1 TB</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <label class="form-label small fw-semibold">Precio (Q) <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="productPrice" placeholder="0.00" min="0" step="0.01" required>
+                            </div>
+                            <div class="col-12 col-md-4" id="productCostWrapper">
+                                <label class="form-label small fw-semibold">Costo del Equipo (Q)</label>
+                                <input type="number" class="form-control" id="productCost" placeholder="0.00" min="0" step="0.01">
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <label class="form-label small fw-semibold">Cantidad en Stock <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="productStock" placeholder="1" min="0" required>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label small fw-semibold">Stock Mínimo</label>
+                                <input type="number" class="form-control" id="productMinStock" placeholder="0" min="0">
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label small fw-semibold">Estado <span class="text-danger">*</span></label>
+                                <select class="form-select" id="productStatus" required>
+                                    <option value="Nuevo">Nuevo</option>
+                                    <option value="Seminuevo">Seminuevo</option>
+                                    <option value="Usado">Usado</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label small fw-semibold">Fecha de Ingreso</label>
+                                <input type="date" class="form-control" id="productDate">
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer bg-light border-top">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-danger fw-bold" id="saveProductBtn">
+                        <i class="bi bi-check-lg me-1"></i>Guardar Producto
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Supply Modal -->
+    <div class="modal fade" id="supplyModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0">
+                <div class="modal-header bg-danger text-white">
+                    <h6 class="modal-title fw-bold" id="supplyModalTitle"><i class="bi bi-boxes me-2"></i>Agregar Suministro</h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <form id="supplyForm">
+                        <input type="hidden" id="supplyId">
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label small fw-semibold">Nombre del Producto <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="supplyName" placeholder="Ej: Papel Bond, Tinta..." required>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label small fw-semibold">Categoría <span class="text-danger">*</span></label>
+                                <select class="form-select" id="supplyCategory" required>
+                                    <option value="Papelería">Papelería</option>
+                                    <option value="Tinta">Tinta</option>
+                                    <option value="Oficina">Oficina</option>
+                                    <option value="Equipo">Equipo</option>
+                                </select>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <label class="form-label small fw-semibold">Cantidad <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="supplyQuantity" placeholder="0" min="0" required>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <label class="form-label small fw-semibold">Unidad</label>
+                                <input type="text" class="form-control" id="supplyUnit" placeholder="Ej: Resmas, Unidades">
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label small fw-semibold">Stock Mínimo</label>
+                                <input type="number" class="form-control" id="supplyMinStock" placeholder="0" min="0">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small fw-semibold">Notas</label>
+                                <textarea class="form-control" id="supplyNotes" rows="2" placeholder="Notas adicionales..."></textarea>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer bg-light border-top">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-danger fw-bold" id="saveSupplyBtn">
+                        <i class="bi bi-check-lg me-1"></i>Guardar Suministro
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Schedule Modal -->
+    <div class="modal fade" id="scheduleModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0">
+                <div class="modal-header bg-danger text-white">
+                    <h6 class="modal-title fw-bold" id="scheduleModalTitle"><i class="bi bi-calendar-plus me-2"></i>Agregar Horario</h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <form id="scheduleForm">
+                        <input type="hidden" id="scheduleId">
+                        <div class="row g-3">
+                            <div class="col-12">
+                                 <label class="form-label small fw-semibold">Nombre del Empleado <span class="text-danger">*</span></label>
+                                 <select class="form-select" id="scheduleEmployeeSelect" required>
+                                     <option value="">Seleccionar empleado...</option>
+                                 </select>
+                                 <input type="text" class="form-control mt-2 d-none" id="scheduleEmployee" placeholder="Nombre completo" required>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label small fw-semibold">Fecha <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control" id="scheduleDate" required>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <label class="form-label small fw-semibold">Entrada</label>
+                                <input type="time" class="form-control" id="scheduleStart" value="08:00">
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <label class="form-label small fw-semibold">Salida</label>
+                                 <input type="time" class="form-control" id="scheduleEnd" value="18:00">
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label small fw-semibold">Rol</label>
+                                <select class="form-select" id="scheduleRole">
+                                    <option value="Vendedor">Vendedor</option>
+                                    <option value="Técnico">Técnico</option>
+                                    <option value="Inventario">Inventario</option>
+                                    <option value="Administrador">Administrador</option>
+                                    <option value="Limpieza">Limpieza</option>
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small fw-semibold">Notas</label>
+                                <input type="text" class="form-control" id="scheduleNotes" placeholder="Notas opcionales...">
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer bg-light border-top">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-danger fw-bold" id="saveScheduleBtn">
+                        <i class="bi bi-check-lg me-1"></i>Guardar Horario
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Accesory Modal -->
+    <div class="modal fade" id="accesoryModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0">
+                <div class="modal-header bg-danger text-white">
+                    <h6 class="modal-title fw-bold" id="accModalTitle"><i class="bi bi-tools me-2"></i>Agregar Accesorio</h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <form id="accesoryForm">
+                        <input type="hidden" id="accId">
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label small fw-semibold">Nombre <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="accName" placeholder="Nombre del accesorio" required>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label small fw-semibold">Tipo</label>
+                                <select class="form-select" id="accType">
+                                    <option value="Cargadores">Cargadores</option>
+                                    <option value="Protectores">Protectores</option>
+                                    <option value="Chips SIM">Chips SIM</option>
+                                    <option value="Cases">Cases</option>
+                                    <option value="Cables">Cables</option>
+                                    <option value="Adaptadores">Adaptadores</option>
+                                    <option value="Templates">Templates</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label small fw-semibold">Color</label>
+                                <input type="text" class="form-control" id="accColor" placeholder="Color">
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <label class="form-label small fw-semibold">Precio (Q) <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="accPrice" placeholder="0.00" min="0" step="0.01" required>
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <label class="form-label small fw-semibold">Stock <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="accStock" placeholder="0" min="0" required>
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <label class="form-label small fw-semibold">Stock Mínimo</label>
+                                <input type="number" class="form-control" id="accMinStock" placeholder="0" min="0">
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label small fw-semibold">Fecha Ingreso</label>
+                                <input type="date" class="form-control" id="accDate">
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer bg-light border-top">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-danger fw-bold" id="saveAccBtn">
+                        <i class="bi bi-check-lg me-1"></i>Guardar Accesorio
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- User Modal -->
+    <div class="modal fade" id="userModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0">
+                <div class="modal-header bg-danger text-white">
+                    <h6 class="modal-title fw-bold" id="userModalTitle"><i class="bi bi-person-plus me-2"></i>Nuevo Usuario</h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <form id="userForm">
+                        <input type="hidden" id="userId">
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label small fw-semibold">Nombre Completo <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="userFullName" required>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small fw-semibold">Usuario <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="userUsername" required>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small fw-semibold">Correo Electrónico <span class="text-danger">*</span></label>
+                                <input type="email" class="form-control" id="userEmail" required>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small fw-semibold">Contraseña <span class="text-danger">*</span></label>
+                                <input type="password" class="form-control" id="userPassword" placeholder="Mínimo 6 caracteres" minlength="6">
+                                <small class="text-muted">Dejar en blanco para mantener la actual (solo en edición)</small>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small fw-semibold">Rol</label>
+                                <select class="form-select" id="userRole">
+                                    <option value="Administrador">Administrador</option>
+                                    <option value="Vendedor">Vendedor</option>
+                                    <option value="Inventario">Inventario</option>
+                                </select>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer bg-light border-top">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-danger fw-bold" id="saveUserBtn">
+                        <i class="bi bi-check-lg me-1"></i>Guardar Usuario
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<!-- Delete Confirmation Modal -->
+    <div class="modal fade" id="deleteModal" tabindex="-1">
+        <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-content border-0">
+                <div class="modal-body text-center p-4">
+                    <i class="bi bi-exclamation-triangle text-danger fs-1 mb-3 d-block"></i>
+                    <h6 class="fw-bold">¿Confirmar Eliminación?</h6>
+                    <p class="text-muted small" id="deleteModalMessage">¿Estás seguro de eliminar este registro?</p>
+                </div>
+                <div class="modal-footer bg-light border-top justify-content-center">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-danger fw-bold" id="confirmDeleteBtn">
+                        <i class="bi bi-trash me-1"></i>Eliminar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stock Adjustment Modal -->
+    <div class="modal fade" id="stockModal" tabindex="-1">
+        <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-content border-0">
+                <div class="modal-header bg-danger text-white">
+                    <h6 class="modal-title fw-bold"><i class="bi bi-box-seam me-2"></i>Ajustar Stock</h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <input type="hidden" id="stockProductId">
+                    <div class="text-center mb-3">
+                        <h5 class="fw-bold" id="stockProductName">-</h5>
+                        <p class="text-muted small mb-0">Stock actual: <span class="fw-bold" id="stockCurrentValue">0</span></p>
+                        <p class="text-muted small mb-0">Stock mínimo: <span class="fw-bold text-warning" id="stockMinValue">0</span></p>
+                    </div>
+                    <div class="d-flex gap-2 align-items-center justify-content-center mb-3">
+                        <button class="btn btn-outline-danger btn-lg" id="stockDecrementBtn">
+                            <i class="bi bi-dash-lg"></i>
+                        </button>
+                        <input type="number" class="form-control text-center fw-bold fs-5" id="stockQuantity" value="1" min="0" style="width: 80px;">
+                        <button class="btn btn-outline-success btn-lg" id="stockIncrementBtn">
+                            <i class="bi bi-plus-lg"></i>
+                        </button>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-danger w-50" id="stockRemoveBtn">
+                            <i class="bi bi-dash-circle me-1"></i>Quitar
+                        </button>
+                        <button class="btn btn-success w-50" id="stockAddBtn">
+                            <i class="bi bi-plus-circle me-1"></i>Agregar
+                        </button>
+                    </div>
+                    <div id="stockError" class="alert alert-danger d-none mt-3 small py-2"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Password Modal -->
+    <div class="modal fade" id="adminPassModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-content border-0">
+                <div class="modal-header bg-danger text-white">
+                    <h6 class="modal-title fw-bold"><i class="bi bi-shield-lock me-2"></i>Acceso Restringido</h6>
+                </div>
+                <div class="modal-body text-center p-4">
+                    <i class="bi bi-lock-fill text-danger fs-1 mb-3 d-block"></i>
+                    <p class="fw-bold mb-1">Área Solo para Administradores</p>
+                    <p class="text-muted small mb-3" id="adminPassMessage">Ingrese la contraseña de administrador para acceder.</p>
+                    <div id="adminPassError" class="alert alert-danger d-none small py-2"></div>
+                    <input type="password" class="form-control" id="adminPassInput" placeholder="Contraseña de administrador">
+                </div>
+                <div class="modal-footer bg-light border-top justify-content-center">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-danger fw-bold" id="verifyAdminBtn">
+                        <i class="bi bi-check-lg me-1"></i>Verificar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<!-- Profile Modal -->
+    <div class="modal fade" id="profileModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0">
+                <div class="modal-header bg-danger text-white">
+                    <h6 class="modal-title fw-bold"><i class="bi bi-person-circle me-2"></i>Mi Perfil</h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="text-center mb-3">
+                        <div class="avatar-circle bg-danger bg-opacity-10 text-danger mx-auto" style="width:64px;height:64px;font-size:1.5rem;" id="profileAvatarPreview">U</div>
+                        <div class="small text-muted mt-2" id="profileUsernameLabel">usuario</div>
+                    </div>
+                    <form id="profileForm">
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Nombre Completo</label>
+                            <input type="text" class="form-control" id="profileFullName" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Correo Electrónico</label>
+                            <input type="email" class="form-control" id="profileEmail" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Nueva Contraseña</label>
+                            <input type="password" class="form-control" id="profileNewPassword" placeholder="Dejar en blanco para no cambiarla" minlength="6">
+                        </div>
+                        <div class="mb-1">
+                            <label class="form-label small fw-semibold">Confirmar Nueva Contraseña</label>
+                            <input type="password" class="form-control" id="profileNewPasswordConfirm" placeholder="Repite la nueva contraseña" minlength="6">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer bg-light border-top">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-danger fw-bold" id="saveProfileBtn">
+                        <i class="bi bi-check-lg me-1"></i>Guardar Cambios
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<!-- Support Modal -->
+    <div class="modal fade" id="supportModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content border-0">
+                <div class="modal-header bg-danger text-white">
+                    <h6 class="modal-title fw-bold"><i class="bi bi-headset me-2"></i>Soporte Técnico</h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <ul class="nav nav-tabs mb-3">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#supportTabFaq" type="button">
+                                <i class="bi bi-question-circle me-1"></i>Preguntas Frecuentes
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#supportTabProblema" type="button">
+                                <i class="bi bi-envelope-exclamation me-1"></i>Reportar un Problema
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#supportTabContacto" type="button">
+                                <i class="bi bi-telephone me-1"></i>Contacto
+                            </button>
+                        </li>
+                    </ul>
+
+                    <div class="tab-content">
+                        <!-- ---- FAQ ---- -->
+                        <div class="tab-pane fade show active" id="supportTabFaq">
+                            <div class="accordion accordion-flush" id="faqAccordion">
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq1">¿Para qué sirve cada sección del menú?</button>
+                                    </h2>
+                                    <div id="faq1" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                                        <div class="accordion-body small">
+                                            <ul class="mb-0 ps-3">
+                                                <li><strong>Dashboard:</strong> resumen general del negocio (productos, stock, valor total, categorías y gráficas).</li>
+                                                <li><strong>Inventario:</strong> celulares y equipos: agregar, editar, ajustar stock.</li>
+                                                <li><strong>Accesorios / Inventario General:</strong> control de accesorios y suministros de oficina.</li>
+                                                <li><strong>Horarios:</strong> calendario de turnos de los empleados.</li>
+                                                <li><strong>Ventas:</strong> registrar ventas (carrito), ver el historial de ventas y hacer el cuadre de caja.</li>
+                                                <li><strong>Historial:</strong> bitácora de todas las acciones realizadas en el sistema.</li>
+                                                <li><strong>Usuarios:</strong> administración de las cuentas del sistema.</li>
+                                                <li><strong>Actualizaciones:</strong> novedades y funciones nuevas del sistema.</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq2">¿Cómo registro una venta?</button>
+                                    </h2>
+                                    <div id="faq2" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                                        <div class="accordion-body small">Ve a <strong>Ventas → Nueva Venta</strong>, busca el producto, añádelo al carrito (puedes agregar varios), ajusta cantidad/precio si hace falta, escribe una nota para el recibo si quieres, y presiona <strong>Completar Venta</strong>. El stock se descuenta automáticamente.</div>
+                                    </div>
+                                </div>
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq3">¿Cómo hago el cuadre de caja?</button>
+                                    </h2>
+                                    <div id="faq3" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                                        <div class="accordion-body small">En <strong>Ventas → Cuadre de Caja</strong>, cuenta cuántos billetes y monedas de cada denominación tienes y escribe la cantidad en cada campo. El sistema calcula el total automáticamente y lo compara contra las ventas del día. Presiona <strong>Guardar Cuadre</strong> para dejarlo registrado en el historial.</div>
+                                    </div>
+                                </div>
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq4">¿Cómo puedo ser el "Empleado del Mes"?</button>
+                                    </h2>
+                                    <div id="faq4" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                                        <div class="accordion-body small">La estrella <i class="bi bi-star-fill text-warning"></i> se le otorga automáticamente al vendedor con el <strong>mayor monto (Q) vendido en el mes actual</strong>. Se recalcula cada vez que se registra una venta, y aparece junto a tu nombre en el menú y en la lista de Usuarios.</div>
+                                    </div>
+                                </div>
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq5">¿Qué es el "IVU" en Inventario?</button>
+                                    </h2>
+                                    <div id="faq5" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                                        <div class="accordion-body small">El IVU es el monto en Q que paga el cliente para sacar el equipo (por ejemplo, el pronto o pago inicial). Se registra en Inventario, en el campo "IVU (Q)" de cada producto.</div>
+                                    </div>
+                                </div>
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq6">Olvidé mi contraseña, ¿qué hago?</button>
+                                    </h2>
+                                    <div id="faq6" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                                        <div class="accordion-body small">Ve a la pestaña <strong>"Reportar un Problema"</strong> de esta misma ventana, describe que olvidaste tu contraseña y presiona Enviar. Se abrirá tu correo con el mensaje listo para enviarlo a soporte técnico, quien restablecerá tu acceso.</div>
+                                    </div>
+                                </div>
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq7">No veo una sección o me sale "Próximamente", ¿por qué?</button>
+                                    </h2>
+                                    <div id="faq7" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                                        <div class="accordion-body small">El acceso a cada sección depende del rol y los permisos que te haya asignado el administrador. Si crees que deberías tener acceso, contacta al administrador del sistema.</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ---- Reportar un Problema ---- -->
+                        <div class="tab-pane fade" id="supportTabProblema">
+                            <p class="text-muted small mb-3">Describe tu problema (por ejemplo: "Olvidé mi contraseña y no puedo entrar al sistema"). Al presionar Enviar se abrirá tu correo con el mensaje ya escrito, listo para enviarlo a <strong>soporte-tecnico@angeltechsolutions.dev</strong>.</p>
+                            <div class="mb-3">
+                                <label class="form-label small fw-semibold">¿Cuál es el problema?</label>
+                                <textarea class="form-control" id="supportProblemText" rows="5" placeholder="Ej: Olvidé mi contraseña y no puedo entrar al sistema..."></textarea>
+                            </div>
+                            <button type="button" class="btn btn-danger fw-bold" id="sendSupportProblemBtn">
+                                <i class="bi bi-send me-1"></i>Enviar a Soporte Técnico
+                            </button>
+                        </div>
+
+                        <!-- ---- Contacto ---- -->
+                        <div class="tab-pane fade" id="supportTabContacto">
+                            <div class="support-contact-card mb-2">
+                                <div>
+                                    <div class="small text-muted fw-semibold">Reportar un error / Asistencia técnica</div>
+                                    <a href="mailto:soporte-tecnico@angeltechsolutions.dev" class="fw-bold text-danger text-decoration-none">soporte-tecnico@angeltechsolutions.dev</a>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-danger" onclick="App.copySupportEmail('soporte-tecnico@angeltechsolutions.dev', this)" title="Copiar correo">
+                                    <i class="bi bi-clipboard"></i>
+                                </button>
+                            </div>
+                            <div class="support-contact-card mb-3">
+                                <div>
+                                    <div class="small text-muted fw-semibold">Contacto general</div>
+                                    <a href="mailto:contacto@angeltechsolutions.dev" class="fw-bold text-danger text-decoration-none">contacto@angeltechsolutions.dev</a>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-danger" onclick="App.copySupportEmail('contacto@angeltechsolutions.dev', this)" title="Copiar correo">
+                                    <i class="bi bi-clipboard"></i>
+                                </button>
+                            </div>
+                            <div class="support-contact-card">
+                                <div>
+                                    <div class="small text-muted fw-semibold">Horario de Servicio - Angel Tech Solutions</div>
+                                    <div class="fw-bold text-danger">Lunes a Sábado, 8:00 AM - 5:00 PM</div>
+                                </div>
+                                <i class="bi bi-clock-history text-danger fs-4"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light border-top d-flex justify-content-between align-items-center">
+                    <small class="text-muted">Versión del sistema: <strong id="supportVersionLabel">1.0.0</strong></small>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== MODAL DE BIENVENIDA ===== -->
+    <div class="modal fade" id="welcomeModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 welcome-modal">
+                <div class="modal-body p-4 p-lg-5 text-center">
+                    <div class="welcome-icon mx-auto mb-3">
+                        <i class="bi bi-robot"></i>
+                    </div>
+                    <h4 class="fw-bold mb-2">¡Bienvenido a XTREME MOBILE!</h4>
+                    <p class="text-muted mb-4">¿Eres nuevo en el sistema? Podemos darte un recorrido guiado por el panel de administración para que aprendas a usarlo rápidamente.</p>
+                    <div class="d-flex flex-column gap-2">
+                        <button class="btn btn-danger fw-bold py-2" id="welcomeTourBtn">
+                            <i class="bi bi-compass me-2"></i>Sí, quiero un tour
+                        </button>
+                        <button class="btn btn-outline-secondary py-2" id="welcomeSkipBtn">
+                            No, ya conozco el sistema
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<!-- ===== OVERLAY DEL TOUR GUIADO ===== -->
+    <div id="tourOverlay" class="tour-overlay d-none">
+        <div class="tour-spotlight" id="tourSpotlight"></div>
+        <div class="tour-tooltip" id="tourTooltip">
+            <div class="tour-tooltip-header">
+                <span class="tour-step-badge" id="tourStepBadge">1 / 5</span>
+                <button class="btn btn-sm btn-link text-white" id="tourSkipBtn">
+                    <i class="bi bi-x-lg me-1"></i>Saltar
+                </button>
+            </div>
+            <div class="tour-tooltip-body">
+                <h6 class="fw-bold mb-2" id="tourTitle">Título</h6>
+                <p class="mb-0" id="tourDescription">Descripción</p>
+            </div>
+            <div class="tour-tooltip-footer">
+                <button class="btn btn-outline-light btn-sm" id="tourPrevBtn">
+                    <i class="bi bi-chevron-left me-1"></i>Anterior
+                </button>
+                <button class="btn btn-danger btn-sm fw-bold" id="tourNextBtn">
+                    Siguiente<i class="bi bi-chevron-right ms-1"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+<!-- Toast Notification -->
+    <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 9999">
+        <div id="toastNotification" class="toast align-items-center border-0" role="alert">
+            <div class="d-flex">
+                <div class="toast-body fw-semibold" id="toastMessage"></div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        </div>
+    </div>
+
+<!-- ============ PRINT RECEIPT (oculto, solo visible al imprimir) ============ -->
+<div id="printReceipt"></div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/alasql@4/dist/alasql.min.js"></script>
+    <script src="js/supabase-config.js"></script>
+    <script src="js/supabase-service.js"></script>
+    <script src="js/permissions.js"></script>
+    <script src="js/data.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/inventory.js"></script>
+    <script src="js/dashboard.js"></script>
+<script src="js/export.js"></script>
+    <script src="js/pos.js"></script>
+    <script src="js/purchases.js"></script>
+    <script src="js/roles-admin.js"></script>
+    <script src="js/tour.js"></script>
+    <script src="js/app.js"></script>
 </body>
 </html>
+

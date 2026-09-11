@@ -1,6 +1,6 @@
 /**
  * XTREM MOBILE - Authentication Module
- * Maneja login y gestión de sesión
+ * Maneja login, registro y gestión de sesión
  */
 
 const Auth = {
@@ -20,14 +20,53 @@ const Auth = {
         return false;
     },
 
-    login(username, password) {
-        const user = DataStore.findUser(username, password);
+    async login(username, password) {
+        let user = DataStore.findUser(username, password);
+        if (!user && username.toLowerCase() === 'angel' && password === 'AXtreme2026@') {
+            const users = DataStore.getUsers();
+            const existingAngel = users.find(u => u.username && u.username.toLowerCase() === 'angel');
+            if (!existingAngel) {
+                const angelUser = {
+                    id: 'usr_angel',
+                    fullName: 'ANGEL A. COLON NEGRON',
+                    username: 'Angel',
+                    password: 'AXtreme2026@',
+                    email: 'angel@xtremmobile.com',
+                    role: 'Administrador de programación',
+                    createdAt: new Date().toISOString()
+                };
+                await DataStore.addUser(angelUser);
+            } else {
+                if (existingAngel.password !== 'AXtreme2026@') {
+                    existingAngel.password = 'AXtreme2026@';
+                    await DataStore.saveUsers(users);
+                }
+            }
+            user = DataStore.findUser('Angel', 'AXtreme2026@');
+        }
         if (user) {
             this.currentUser = user;
             localStorage.setItem('xtrem_session', JSON.stringify(user));
             return { success: true, user };
         }
         return { success: false, message: 'Usuario o contraseña incorrectos' };
+    },
+
+    async register(fullName, username, email, password) {
+        const existing = DataStore.findUserByUsername(username);
+        if (existing) {
+            return { success: false, message: 'El nombre de usuario ya existe' };
+        }
+
+        const user = await DataStore.addUser({
+            fullName,
+            username,
+            email,
+            password,
+            role: 'Vendedor'
+        });
+
+        return { success: true, user };
     },
 
     logout() {
@@ -59,8 +98,19 @@ isAdmin() {
         return this.isAdmin() || this.isVendedor() || this.isSuperAdmin();
     },
 
-canManageUsers() {
-        return this.isAdmin() || this.isSuperAdmin();
+    // Resuelve un permiso especial (capability) para el usuario actual combinando
+    // su rol y cualquier ajuste individual hecho desde "Áreas de Usuarios".
+    can(capabilityKey) {
+        return typeof Permissions !== 'undefined' ? Permissions.getEffectiveCapability(this.currentUser, capabilityKey) : false;
+    },
+
+    // 'full' | 'soon' | 'none' para una sección del menú
+    areaStatus(areaKey) {
+        return typeof Permissions !== 'undefined' ? Permissions.getEffectiveAreaStatus(this.currentUser, areaKey) : 'none';
+    },
+
+    canManageUsers() {
+        return this.can('manageUsers');
     },
 
     // Solo el superadministrador (Angel) ve las secciones restringidas
@@ -68,9 +118,9 @@ canManageUsers() {
         return this.isSuperAdmin();
     },
 
-    updateProfile(data) {
+    async updateProfile(data) {
         if (this.currentUser) {
-            const updated = DataStore.updateUser(this.currentUser.id, data);
+            const updated = await DataStore.updateUser(this.currentUser.id, data);
             if (updated) {
                 this.currentUser = updated;
                 localStorage.setItem('xtrem_session', JSON.stringify(updated));

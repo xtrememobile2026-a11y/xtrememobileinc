@@ -38,19 +38,11 @@ body {
     visibility: hidden;
 }
 
-.loading-logo {
-    width: 150px;
-    max-width: 55vw;
-    padding: 18px;
-    background: #1a1a2e;
-    border-radius: 24px;
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
-    animation: loading-logo-pulse 1.6s ease-in-out infinite;
-}
-
-@keyframes loading-logo-pulse {
-    0%, 100% { transform: scale(1); opacity: 1; }
-    50% { transform: scale(1.08); opacity: 0.85; }
+.loading-logo-img {
+    width: 110px;
+    height: 110px;
+    object-fit: contain;
+    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.35));
 }
 
 /* Login Page */
@@ -67,21 +59,19 @@ body {
 }
 
 .company-logo {
-    width: 130px;
-    height: 100px;
+    width: 120px;
+    height: 120px;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #1a1a2e;
-    border-radius: 16px;
-    padding: 12px;
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+    margin: 0 auto 1rem;
 }
 
-.company-logo img {
-    width: 100%;
-    height: 100%;
+.login-logo-img {
+    max-width: 100%;
+    max-height: 100%;
     object-fit: contain;
+    filter: drop-shadow(0 4px 12px rgba(0,0,0,0.25));
 }
 
 /* Sidebar */
@@ -109,16 +99,16 @@ body {
 }
 
 .sidebar-logo {
-    width: 48px;
-    height: 48px;
+    width: 45px;
+    height: 45px;
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
-.sidebar-logo img {
-    width: 100%;
-    height: 100%;
+.sidebar-logo-img {
+    max-width: 100%;
+    max-height: 100%;
     object-fit: contain;
 }
 
@@ -259,6 +249,176 @@ body {
 .badge-usado {
     background: #f8d7da;
     color: #721c24;
+}
+
+/* Stock a punto de llegar a "Stock Bajo" */
+.badge-stock-medium {
+    background: #fd7e14;
+    color: #fff;
+}
+
+.text-orange {
+    color: #fd7e14 !important;
+}
+
+/* ===== Página de Compras ===== */
+.compras-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    border: 1px solid #eee;
+    border-radius: 10px;
+    margin-bottom: 0.6rem;
+    background: #fff;
+}
+
+.compras-item:last-child {
+    margin-bottom: 0;
+}
+
+.compras-item-ordered {
+    background: #f8f9fa;
+    opacity: 0.75;
+}
+
+.compras-item-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.35rem;
+    flex-shrink: 0;
+}
+
+/* Badge de notificación de stock bajo en el menú lateral */
+.stock-alert-badge {
+    font-size: 0.65rem;
+    padding: 0.25em 0.5em;
+    vertical-align: middle;
+}
+
+/* ===== Meta de Teléfonos del Gobierno (Dashboard) ===== */
+.gov-phones-banner {
+    background: linear-gradient(135deg, #0f2c52 0%, #1e4d8b 55%, #0f2c52 100%);
+    border-radius: 16px;
+    padding: 1.5rem 1.75rem;
+    color: #fff;
+    box-shadow: 0 10px 28px rgba(15, 44, 82, 0.35);
+    position: relative;
+    overflow: hidden;
+}
+
+.gov-phones-banner::before {
+    content: '';
+    position: absolute;
+    top: -50px;
+    right: -50px;
+    width: 180px;
+    height: 180px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 50%;
+}
+
+.gov-phones-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    position: relative;
+    z-index: 1;
+}
+
+.gov-phones-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.6rem;
+    flex-shrink: 0;
+}
+
+.gov-phones-label {
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-size: 0.7rem;
+    opacity: 0.8;
+    font-weight: 700;
+}
+
+.gov-phones-title {
+    margin: 0;
+    font-weight: 800;
+}
+
+.gov-phones-count {
+    margin-left: auto;
+    font-size: 2.3rem;
+    font-weight: 800;
+    line-height: 1;
+    color: #ffc107;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.gov-phones-goal {
+    font-size: 1.1rem;
+    opacity: 0.7;
+    font-weight: 600;
+    margin-left: 2px;
+}
+
+.gov-phones-progress {
+    height: 12px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 20px;
+    margin-top: 1.15rem;
+    position: relative;
+    z-index: 1;
+}
+
+.gov-phones-progress .progress-bar {
+    background: linear-gradient(90deg, #ffc107, #fd7e14);
+    border-radius: 20px;
+    transition: width 0.6s ease;
+}
+
+.gov-phones-progress .progress-bar.gov-goal-reached {
+    background: linear-gradient(90deg, #2ecc71, #27ae60);
+}
+
+.gov-phones-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 0.65rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    position: relative;
+    z-index: 1;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+/* ===== Página de Actualizaciones ===== */
+.update-feature {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.update-feature:last-child {
+    border-bottom: none;
+}
+
+.update-feature > i {
+    font-size: 1.25rem;
+    margin-top: 2px;
+    flex-shrink: 0;
 }
 
 /* Buttons */
@@ -1041,4 +1201,102 @@ body {
     .receipt .th-total span {
         font-size: 20px;
     }
+}
+
+/* ===== Nota del recibo ===== */
+.receipt .th-note {
+    font-size: 13px;
+    text-align: left;
+    white-space: pre-wrap;
+    margin: 4px 0;
+}
+
+/* ===== Soporte Técnico ===== */
+.support-contact-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+}
+
+/* ===== POS: Nueva Venta (búsqueda + carrito) ===== */
+.pos-search-results {
+    max-height: 420px;
+    overflow-y: auto;
+    border: 1px solid #eee;
+    border-radius: 10px;
+}
+
+.pos-search-item {
+    padding: 0.65rem 1rem;
+    border-bottom: 1px solid #f0f0f0;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.pos-search-item:last-child {
+    border-bottom: none;
+}
+
+.pos-search-item:hover {
+    background: rgba(220, 53, 69, 0.06);
+}
+
+.pos-search-item-disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.pos-cart-body {
+    max-height: 420px;
+    overflow-y: auto;
+}
+
+.pos-cart-item {
+    padding: 0.65rem 1rem;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.pos-cart-item:last-child {
+    border-bottom: none;
+}
+
+/* ===== Cuadre de Caja ===== */
+.cuadre-subtotal {
+    display: block;
+    text-align: right;
+    margin-top: 2px;
+}
+
+/* ===== Áreas de Usuarios: matriz de permisos ===== */
+.permissions-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.permissions-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.permissions-row:last-child {
+    border-bottom: none;
+}
+
+.permissions-row-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #444;
+}
+
+.permissions-row select {
+    max-width: 220px;
 }
