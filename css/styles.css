@@ -15,6 +15,7 @@ body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background-color: #f0f2f5;
     overflow-x: hidden;
+    overscroll-behavior: none;
 }
 
 /* Loading Screen */
@@ -78,6 +79,7 @@ body {
 .app-container {
     display: flex;
     height: 100vh;
+    height: 100dvh; /* viewport real en móviles (evita que la barra del navegador atrape el scroll) */
     overflow: hidden;
 }
 
@@ -90,6 +92,8 @@ body {
     transition: transform 0.3s ease;
     z-index: 1000;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
 }
 
 .sidebar-header {
@@ -160,6 +164,8 @@ body {
 .main-content .p-3.p-lg-4 {
     flex: 1;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
 }
 
 /* Stat Cards */
@@ -537,7 +543,8 @@ body {
         position: fixed;
         top: 0;
         left: 0;
-        height: 100%;
+        height: 100vh;
+        height: 100dvh;
         transform: translateX(-100%);
     }
 
@@ -1226,6 +1233,8 @@ body {
 .pos-search-results {
     max-height: 420px;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
     border: 1px solid #eee;
     border-radius: 10px;
 }
@@ -1253,6 +1262,8 @@ body {
 .pos-cart-body {
     max-height: 420px;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
 }
 
 .pos-cart-item {
@@ -1269,6 +1280,36 @@ body {
     display: block;
     text-align: right;
     margin-top: 2px;
+}
+
+/* ===== Mi Perfil ===== */
+.password-strength-bar {
+    height: 8px;
+    background: #eee;
+    border-radius: 20px;
+    overflow: hidden;
+}
+
+.password-strength-fill {
+    height: 100%;
+    width: 0%;
+    background: #dc3545;
+    border-radius: 20px;
+    transition: width 0.25s ease, background-color 0.25s ease;
+}
+
+.profile-perm-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.4rem 0.6rem;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 0.85rem;
+}
+
+.profile-perm-row:last-child {
+    border-bottom: none;
 }
 
 /* ===== Áreas de Usuarios: matriz de permisos ===== */

@@ -281,16 +281,42 @@ navigateTo(page) {
         this.startAutoSync();
     },
 
-    // Cada 10 segundos revisa si hay cambios nuevos en Supabase (hechos desde otro
-    // dispositivo/usuario) y refresca la pantalla actual sin interrumpir al usuario.
+    // Cada 10 segundos: (1) reintenta subir a Supabase cualquier dato local que no
+    // haya logrado sincronizarse todavía (por ejemplo, por un corte de conexión o un
+    // permiso que se corrigió después), y (2) revisa si hay cambios nuevos hechos desde
+    // otro dispositivo/usuario y refresca la pantalla actual sin interrumpir al usuario.
     startAutoSync() {
         if (this._autoSyncTimer) return;
         this._autoSyncTimer = setInterval(async () => {
             if (typeof SupabaseService !== 'undefined' && SupabaseService.isConnected()) {
+                await SupabaseService.migrateAllData();
                 await SupabaseService.syncFromSupabase();
                 this.refreshCurrentPageData();
             }
         }, 10000);
+    },
+
+    // Fuerza una subida completa de todo lo guardado localmente a Supabase ahora mismo
+    // (en vez de esperar al próximo ciclo de 10 segundos). Solo para el superadministrador.
+    async forceFullSync() {
+        if (typeof SupabaseService === 'undefined' || !SupabaseService.isConnected()) {
+            App.showToast('No hay conexión con Supabase en este momento', 'error');
+            return;
+        }
+        App.showToast('Sincronizando con Supabase...', 'success');
+        const result = await SupabaseService.migrateAllData();
+        await SupabaseService.syncFromSupabase();
+        this.refreshCurrentPageData();
+
+        console.log('Resultado de sincronización:', result);
+
+        if (result.ok) {
+            const c = result.localCounts;
+            const resumen = c ? ` (localmente: ${c.sales} ventas, ${c.history} historial, ${c.roles} roles)` : '';
+            App.showToast('Sincronización completa exitosa' + resumen, 'success');
+        } else {
+            App.showToast('Fallaron: ' + (result.details ? result.details.join(' | ') : result.failed.join(', ')), 'error');
+        }
     },
 
     refreshCurrentPageData() {
@@ -1357,6 +1383,9 @@ navigateTo(page) {
         const isLow = (stock, min) => {
             const s = parseInt(stock) || 0;
             const m = parseInt(min) || 0;
+            // Un producto agotado (stock 0) siempre cuenta como "bajo", tenga o no
+            // un stock mínimo configurado. Si tiene mínimo, también cuenta al llegar a él.
+            if (s <= 0) return true;
             return m > 0 && s <= m;
         };
 
@@ -1382,49 +1411,176 @@ navigateTo(page) {
     setupProfileModal() {
         document.getElementById('profileModal').addEventListener('show.bs.modal', () => this.openProfileModal());
         document.getElementById('saveProfileBtn').addEventListener('click', () => this.saveProfile());
+
+        // Botones de "ver contraseña" (ojo) para los 3 campos de contraseña
+        this.setupPasswordToggle('toggleProfileCurrentPassword', 'profileCurrentPassword');
+        this.setupPasswordToggle('toggleProfileNewPassword', 'profileNewPassword');
+        this.setupPasswordToggle('toggleProfileNewPasswordConfirm', 'profileNewPasswordConfirm');
+
+        // Barra de seguridad de la nueva contraseña, se actualiza mientras se escribe
+        document.getElementById('profileNewPassword').addEventListener('input', (e) => {
+            this.updatePasswordStrengthUI(e.target.value);
+        });
+    },
+
+    setupPasswordToggle(btnId, inputId) {
+        const btn = document.getElementById(btnId);
+        const input = document.getElementById(inputId);
+        btn.addEventListener('click', () => {
+            const icon = btn.querySelector('i');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.classList.replace('bi-eye', 'bi-eye-slash');
+            } else {
+                input.type = 'password';
+                icon.classList.replace('bi-eye-slash', 'bi-eye');
+            }
+        });
+    },
+
+    // Calcula qué tan segura es una contraseña (longitud, mayúsculas/minúsculas,
+    // números y símbolos) y devuelve un nivel para mostrar en la barra visual.
+    calculatePasswordStrength(pwd) {
+        if (!pwd) return { score: 0, label: 'Sin contraseña', color: '#dc3545', percent: 0 };
+
+        let score = 0;
+        if (pwd.length >= 8) score++;
+        if (pwd.length >= 12) score++;
+        if (/[a-z]/.test(pwd) && /[A-Z]/.test(pwd)) score++;
+        if (/[0-9]/.test(pwd)) score++;
+        if (/[^A-Za-z0-9]/.test(pwd)) score++;
+
+        const levels = [
+            { min: 0, label: 'Muy débil', color: '#dc3545', percent: 15 },
+            { min: 1, label: 'Débil', color: '#fd7e14', percent: 35 },
+            { min: 2, label: 'Media', color: '#ffc107', percent: 55 },
+            { min: 3, label: 'Fuerte', color: '#20c997', percent: 75 },
+            { min: 4, label: 'Muy fuerte', color: '#198754', percent: 100 }
+        ];
+        let result = levels[0];
+        levels.forEach(l => { if (score >= l.min) result = l; });
+        return { score, ...result };
+    },
+
+    updatePasswordStrengthUI(pwd) {
+        const strength = this.calculatePasswordStrength(pwd);
+        const fill = document.getElementById('profilePasswordStrengthFill');
+        const label = document.getElementById('profilePasswordStrengthLabel');
+        fill.style.width = strength.percent + '%';
+        fill.style.backgroundColor = strength.color;
+        label.textContent = pwd ? `Seguridad: ${strength.label} (usa mayúsculas, números y símbolos para mejorarla)` : 'Usa mayúsculas, minúsculas, números y símbolos para una contraseña más segura.';
+        label.style.color = pwd ? strength.color : '';
     },
 
     openProfileModal() {
         const user = Auth.getCurrentUser();
         if (!user) return;
+
         document.getElementById('profileAvatarPreview').textContent = (user.fullName || user.username || 'U').charAt(0).toUpperCase();
-        document.getElementById('profileUsernameLabel').textContent = '@' + user.username;
+        document.getElementById('profileNamePreview').textContent = user.fullName || user.username;
+        document.getElementById('profileUsernamePreview').textContent = '@' + user.username;
         document.getElementById('profileFullName').value = user.fullName || '';
+        document.getElementById('profileUsername').value = user.username || '';
         document.getElementById('profileEmail').value = user.email || '';
+        document.getElementById('profileCurrentPassword').value = '';
         document.getElementById('profileNewPassword').value = '';
         document.getElementById('profileNewPasswordConfirm').value = '';
+        this.updatePasswordStrengthUI('');
+
+        const roleBadge = document.getElementById('profileRoleBadge');
+        roleBadge.textContent = user.role || '-';
+        roleBadge.className = 'role-badge mt-2 d-inline-block ' +
+            (user.role === 'Administrador de programación' ? 'role-badge-blue' : (user.role === 'Administrador' ? 'role-badge-red' : 'role-badge-gray'));
+
+        const topSellerId = this.getTopSellerThisMonth();
+        document.getElementById('profileStarBadge').classList.toggle('d-none', !(topSellerId && user.id === topSellerId));
+
+        const memberSince = document.getElementById('profileMemberSince');
+        memberSince.textContent = user.createdAt ? 'Miembro desde ' + new Date(user.createdAt).toLocaleDateString('es-GT', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+
+        this.renderProfilePermissions(user);
+    },
+
+    renderProfilePermissions(user) {
+        document.getElementById('profileRoleName').textContent = user.role || '-';
+
+        const areasList = document.getElementById('profileAreasList');
+        areasList.innerHTML = Permissions.AREA_KEYS.map(key => {
+            const status = Permissions.getEffectiveAreaStatus(user, key);
+            const info = status === 'full'
+                ? { icon: 'bi-check-circle-fill text-success', text: 'Acceso completo' }
+                : status === 'soon'
+                    ? { icon: 'bi-clock-fill text-warning', text: 'Próximamente' }
+                    : { icon: 'bi-x-circle-fill text-danger', text: 'Sin acceso' };
+            return `
+                <div class="profile-perm-row">
+                    <span>${this.escapeHtml(Permissions.AREA_LABELS[key])}</span>
+                    <span class="text-nowrap"><i class="bi ${info.icon} me-1"></i>${info.text}</span>
+                </div>
+            `;
+        }).join('');
+
+        const capsList = document.getElementById('profileCapsList');
+        capsList.innerHTML = Permissions.CAPABILITY_KEYS.map(key => {
+            const granted = Permissions.getEffectiveCapability(user, key);
+            return `
+                <div class="profile-perm-row">
+                    <span>${this.escapeHtml(Permissions.CAPABILITY_LABELS[key])}</span>
+                    <span class="text-nowrap">${granted ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-x-circle-fill text-danger"></i>'}</span>
+                </div>
+            `;
+        }).join('');
     },
 
     async saveProfile() {
         const fullName = document.getElementById('profileFullName').value.trim();
+        const username = document.getElementById('profileUsername').value.trim();
         const email = document.getElementById('profileEmail').value.trim();
+        const currentPassword = document.getElementById('profileCurrentPassword').value;
         const newPassword = document.getElementById('profileNewPassword').value;
         const newPasswordConfirm = document.getElementById('profileNewPasswordConfirm').value;
 
-        if (!fullName || !email) {
-            App.showToast('Por favor completa tu nombre y correo', 'error');
+        if (!fullName || !username || !email) {
+            App.showToast('Por favor completa tu nombre, usuario y correo', 'error');
             return;
         }
 
-        if (newPassword || newPasswordConfirm) {
-            if (newPassword.length < 6) {
+        const user = Auth.getCurrentUser();
+
+        if (username !== user.username) {
+            const existing = DataStore.findUserByUsername(username);
+            if (existing && existing.id !== user.id) {
+                App.showToast('Ese nombre de usuario ya está en uso', 'error');
+                return;
+            }
+        }
+
+        const updateData = { fullName, username, email };
+
+        if (newPassword || newPasswordConfirm || currentPassword) {
+            if (!currentPassword) {
+                App.showToast('Ingresa tu contraseña actual para poder cambiarla', 'error');
+                return;
+            }
+            if (currentPassword !== user.password) {
+                App.showToast('La contraseña actual no es correcta', 'error');
+                return;
+            }
+            if (!newPassword || newPassword.length < 6) {
                 App.showToast('La nueva contraseña debe tener al menos 6 caracteres', 'error');
                 return;
             }
             if (newPassword !== newPasswordConfirm) {
-                App.showToast('Las contraseñas no coinciden', 'error');
+                App.showToast('Las contraseñas nuevas no coinciden', 'error');
                 return;
             }
+            updateData.password = newPassword;
         }
-
-        const updateData = { fullName, email };
-        if (newPassword) updateData.password = newPassword;
-
-        const user = Auth.getCurrentUser();
 
         const ok = await Auth.updateProfile(updateData);
         if (ok) {
             document.getElementById('sidebarUserName').textContent = Auth.currentUser.fullName;
+            document.getElementById('sidebarUserRole').textContent = Auth.currentUser.role;
             document.getElementById('userAvatar').textContent = (Auth.currentUser.fullName || 'U').charAt(0).toUpperCase();
             this.renderUsersTable();
             await this.logHistory('Perfil actualizado', `El usuario "${user.username}" actualizó su perfil`);

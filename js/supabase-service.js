@@ -59,29 +59,60 @@ const SupabaseService = {
                 });
             };
 
-            // Combina lo que ya había en localStorage con lo que llegó de Supabase, en vez
-            // de reemplazar por completo. Así, un registro que se guardó localmente pero que
-            // todavía no logró subirse a Supabase (por ejemplo porque faltan columnas nuevas
-            // hasta correr la migración del esquema) nunca desaparece por una sincronización.
-            // Se usa solo para colecciones sin operación de "eliminar" (ventas, cuadres de caja).
-            const mergeKeepingLocal = (localKey, cloudItems) => {
+            // Combina lo que dice Supabase (fuente de verdad) con lo que hay guardado
+            // localmente, SIN perder nunca un registro recién creado que todavía no
+            // terminó de subir. Un registro local que Supabase ya no tiene se conserva
+            // mientras sea "reciente" (todavía podría estar subiendo); pasado ese tiempo,
+            // se asume que fue borrado desde otro dispositivo y se descarta, para que los
+            // borrados también se reflejen con el tiempo. Se usa para TODAS las colecciones.
+            const RECENT_GRACE_MS = 30000;
+
+            // No todas las colecciones guardan una fecha de creación propia (horarios y
+            // roles no la tienen). Como respaldo, casi todos los IDs llevan Date.now()
+            // incorporado (ej. "sch_1735689600000"), así que se usa eso para saber qué
+            // tan reciente es un registro cuando no hay otra fecha disponible.
+            const getItemTimestamp = (item) => {
+                if (item.createdAt) {
+                    const t = new Date(item.createdAt).getTime();
+                    if (!isNaN(t)) return t;
+                }
+                if (item.updatedAt) {
+                    const t = new Date(item.updatedAt).getTime();
+                    if (!isNaN(t)) return t;
+                }
+                if (item.id) {
+                    const match = String(item.id).match(/(\d{10,})/);
+                    if (match) return parseInt(match[1], 10);
+                }
+                return 0;
+            };
+
+            const mergeSmart = (localKey, cloudItems) => {
                 const local = JSON.parse(localStorage.getItem(localKey) || '[]');
-                const map = new Map();
-                (cloudItems || []).forEach(item => map.set(item.id, item));
-                local.forEach(item => map.set(item.id, item));
-                return Array.from(map.values());
+                const cloudMap = new Map();
+                (cloudItems || []).forEach(item => cloudMap.set(item.id, item));
+
+                const result = Array.from(cloudMap.values());
+                const seen = new Set(cloudMap.keys());
+                const now = Date.now();
+
+                local.forEach(item => {
+                    if (seen.has(item.id)) return;
+                    const ts = getItemTimestamp(item);
+                    const isRecent = ts && (now - ts) < RECENT_GRACE_MS;
+                    if (isRecent) result.push(item);
+                });
+
+                return result;
             };
 
             const localUsers = JSON.parse(localStorage.getItem('xtrem_users') || '[]');
             const hasLocalUsersWithCredentials = localUsers.some(u => u.username && u.password);
 
-            // isRecentlyWritten evita que una sincronización que llega justo después de un
-            // cambio local (por ejemplo, alguien editando su perfil) lo pise por accidente
-            // mientras esa escritura todavía está subiendo a Supabase.
-            if (!users.error && users.data && !DataStore.isRecentlyWritten('xtrem_users')) {
+            if (!users.error && users.data) {
                 const validUsers = snakeToCamel(users.data).filter(u => u.username && u.password && u.fullName);
                 if (validUsers.length > 0) {
-                    localStorage.setItem('xtrem_users', JSON.stringify(deduplicate(validUsers)));
+                    localStorage.setItem('xtrem_users', JSON.stringify(mergeSmart('xtrem_users', deduplicate(validUsers))));
                 } else if (!hasLocalUsersWithCredentials) {
                     const defaultUsers = [
                         {
@@ -106,9 +137,9 @@ const SupabaseService = {
                     localStorage.setItem('xtrem_users', JSON.stringify(defaultUsers));
                 }
             }
-            
-            if (!products.error && products.data && products.data.length > 0 && !DataStore.isRecentlyWritten('xtrem_products')) {
-                localStorage.setItem('xtrem_products', JSON.stringify(deduplicate(snakeToCamel(products.data))));
+
+            if (!products.error && products.data) {
+                localStorage.setItem('xtrem_products', JSON.stringify(mergeSmart('xtrem_products', deduplicate(snakeToCamel(products.data)))));
             }
             if (!sales.error && sales.data) {
                 const mappedSales = sales.data.map(s => ({
@@ -127,15 +158,15 @@ const SupabaseService = {
                     receiptNote: s.receipt_note || '',
                     createdAt: s.created_at
                 }));
-                localStorage.setItem('xtrem_sales', JSON.stringify(mergeKeepingLocal('xtrem_sales', deduplicate(mappedSales))));
+                localStorage.setItem('xtrem_sales', JSON.stringify(mergeSmart('xtrem_sales', deduplicate(mappedSales))));
             }
-            if (!supplies.error && supplies.data && supplies.data.length > 0 && !DataStore.isRecentlyWritten('xtrem_supplies')) {
-                localStorage.setItem('xtrem_supplies', JSON.stringify(deduplicate(snakeToCamel(supplies.data))));
+            if (!supplies.error && supplies.data) {
+                localStorage.setItem('xtrem_supplies', JSON.stringify(mergeSmart('xtrem_supplies', deduplicate(snakeToCamel(supplies.data)))));
             }
-            if (!schedule.error && schedule.data && schedule.data.length > 0 && !DataStore.isRecentlyWritten('xtrem_schedule')) {
-                localStorage.setItem('xtrem_schedule', JSON.stringify(deduplicate(snakeToCamel(schedule.data))));
+            if (!schedule.error && schedule.data) {
+                localStorage.setItem('xtrem_schedule', JSON.stringify(mergeSmart('xtrem_schedule', deduplicate(snakeToCamel(schedule.data)))));
             }
-            if (!history.error && history.data && history.data.length > 0 && !DataStore.isRecentlyWritten('xtrem_history')) {
+            if (!history.error && history.data) {
                 const mappedHistory = history.data.map(h => ({
                     id: h.id,
                     user: h.user_name,
@@ -143,16 +174,16 @@ const SupabaseService = {
                     detail: h.detail,
                     createdAt: h.date_time
                 }));
-                localStorage.setItem('xtrem_history', JSON.stringify(deduplicate(mappedHistory)));
+                localStorage.setItem('xtrem_history', JSON.stringify(mergeSmart('xtrem_history', deduplicate(mappedHistory))));
             }
-            if (!roles.error && roles.data && roles.data.length > 0 && !DataStore.isRecentlyWritten('xtrem_roles')) {
-                localStorage.setItem('xtrem_roles', JSON.stringify(deduplicate(snakeToCamel(roles.data))));
+            if (!roles.error && roles.data) {
+                localStorage.setItem('xtrem_roles', JSON.stringify(mergeSmart('xtrem_roles', deduplicate(snakeToCamel(roles.data)))));
             }
             if (!cashCounts.error && cashCounts.data) {
-                localStorage.setItem('xtrem_cash_counts', JSON.stringify(mergeKeepingLocal('xtrem_cash_counts', deduplicate(snakeToCamel(cashCounts.data)))));
+                localStorage.setItem('xtrem_cash_counts', JSON.stringify(mergeSmart('xtrem_cash_counts', deduplicate(snakeToCamel(cashCounts.data)))));
             }
             if (!purchaseRequests.error && purchaseRequests.data) {
-                localStorage.setItem('xtrem_purchase_requests', JSON.stringify(mergeKeepingLocal('xtrem_purchase_requests', deduplicate(snakeToCamel(purchaseRequests.data)))));
+                localStorage.setItem('xtrem_purchase_requests', JSON.stringify(mergeSmart('xtrem_purchase_requests', deduplicate(snakeToCamel(purchaseRequests.data)))));
             }
 
             console.log('Datos sincronizados desde Supabase a localStorage');
@@ -551,7 +582,7 @@ const SupabaseService = {
 
     async clearHistory(_skipLocalFallback = false) {
         if (!this.isConnected()) return DataStore.clearHistory();
-        
+
         const { error } = await this.client
             .from(TABLES.history)
             .delete()
@@ -560,6 +591,22 @@ const SupabaseService = {
         if (error) {
             console.error('Error limpiando historial:', error);
             if (!_skipLocalFallback) return DataStore.clearHistory();
+            throw error;
+        }
+        return true;
+    },
+
+    async clearSales(_skipLocalFallback = false) {
+        if (!this.isConnected()) return DataStore.clearSales();
+
+        const { error } = await this.client
+            .from(TABLES.sales)
+            .delete()
+            .neq('id', '00000000-0000-0000-0000-000000000000');
+
+        if (error) {
+            console.error('Error limpiando historial de ventas:', error);
+            if (!_skipLocalFallback) return DataStore.clearSales();
             throw error;
         }
         return true;
@@ -630,6 +677,12 @@ const SupabaseService = {
         }
     },
 
+    async deleteCashCountRemote(id) {
+        if (!this.isConnected()) return;
+        const { error } = await this.client.from(TABLES.cashCounts).delete().eq('id', id);
+        if (error) console.error('Error eliminando cuadre de caja en Supabase:', error);
+    },
+
     // ===== COMPRAS (solicitudes de reabastecimiento) =====
     async getPurchaseRequests() {
         if (!this.isConnected()) return DataStore.getPurchaseRequests();
@@ -663,79 +716,86 @@ const SupabaseService = {
     },
 
     // ===== MIGRACIÓN =====
+    // Sube (upsert) TODO lo que hay guardado localmente a Supabase. Se usa tanto para
+    // la migración manual como para el reintento automático cada 10 segundos, así que
+    // cualquier escritura que en su momento haya fallado (por ejemplo, por RLS activado)
+    // se vuelve a intentar sola hasta que logre subir. Devuelve qué tablas fallaron.
     async migrateAllData() {
         if (!this.isConnected()) {
             console.warn('Supabase no conectado. No se puede migrar.');
-            return false;
+            return { ok: false, failed: ['sin conexión'] };
         }
 
+        const failed = [];
+        const details = [];
+        const upsertSafe = async (table, rows) => {
+            if (!rows || rows.length === 0) return;
+            const { error } = await this.client.from(table).upsert(rows, { onConflict: 'id' });
+            if (error) {
+                console.error(`Error subiendo datos a "${table}":`, error);
+                failed.push(table);
+                details.push(`${table}: ${error.message || error.code || 'error desconocido'}`);
+            }
+        };
+
         try {
-            const users = DataStore.getUsers();
-            const products = DataStore.getProducts();
-            const supplies = DataStore.getSupplies();
-            const schedule = DataStore.getSchedule();
+            await upsertSafe(TABLES.users, camelToSnake(DataStore.getUsers()));
+            await upsertSafe(TABLES.products, camelToSnake(DataStore.getProducts()));
+            await upsertSafe(TABLES.supplies, camelToSnake(DataStore.getSupplies()));
+            await upsertSafe(TABLES.schedule, camelToSnake(DataStore.getSchedule()));
+
             const history = DataStore.getHistory();
+            await upsertSafe(TABLES.history, history.map(h => ({
+                id: h.id,
+                user_name: h.user,
+                action: h.action,
+                detail: h.detail,
+                date_time: h.createdAt
+            })));
+
             const sales = DataStore.getSales();
-            const roles = DataStore.getRoles();
-            const cashCounts = DataStore.getCashCounts();
-            const purchaseRequests = DataStore.getPurchaseRequests();
+            await upsertSafe(TABLES.sales, sales.map(s => ({
+                id: s.id,
+                product_id: s.productId,
+                product_model: s.productName,
+                quantity: s.quantity,
+                unit_price: s.price,
+                total: s.total,
+                customer_name: s.customer,
+                notes: s.notes,
+                seller_name: s.seller,
+                seller_id: s.sellerId,
+                category: s.category,
+                ticket_id: s.ticketId,
+                receipt_note: s.receiptNote,
+                created_at: s.createdAt
+            })));
 
-            if (users.length > 0) {
-                await this.client.from(TABLES.users).upsert(camelToSnake(users), { onConflict: 'id' });
-            }
-            if (products.length > 0) {
-                await this.client.from(TABLES.products).upsert(camelToSnake(products), { onConflict: 'id' });
-            }
-            if (supplies.length > 0) {
-                await this.client.from(TABLES.supplies).upsert(camelToSnake(supplies), { onConflict: 'id' });
-            }
-            if (schedule.length > 0) {
-                await this.client.from(TABLES.schedule).upsert(camelToSnake(schedule), { onConflict: 'id' });
-            }
-            if (history.length > 0) {
-                const historyForSupabase = history.map(h => ({
-                    id: h.id,
-                    user_name: h.user,
-                    action: h.action,
-                    detail: h.detail,
-                    date_time: h.createdAt
-                }));
-                await this.client.from(TABLES.history).upsert(historyForSupabase, { onConflict: 'id' });
-            }
-            if (sales.length > 0) {
-                const salesForSupabase = sales.map(s => ({
-                    id: s.id,
-                    product_id: s.productId,
-                    product_model: s.productName,
-                    quantity: s.quantity,
-                    unit_price: s.price,
-                    total: s.total,
-                    customer_name: s.customer,
-                    notes: s.notes,
-                    seller_name: s.seller,
-                    seller_id: s.sellerId,
-                    category: s.category,
-                    ticket_id: s.ticketId,
-                    receipt_note: s.receiptNote,
-                    created_at: s.createdAt
-                }));
-                await this.client.from(TABLES.sales).upsert(salesForSupabase, { onConflict: 'id' });
-            }
-            if (roles.length > 0) {
-                await this.client.from(TABLES.roles).upsert(camelToSnake(roles), { onConflict: 'id' });
-            }
-            if (cashCounts.length > 0) {
-                await this.client.from(TABLES.cashCounts).upsert(camelToSnake(cashCounts), { onConflict: 'id' });
-            }
-            if (purchaseRequests.length > 0) {
-                await this.client.from(TABLES.purchaseRequests).upsert(camelToSnake(purchaseRequests), { onConflict: 'id' });
-            }
+            await upsertSafe(TABLES.roles, camelToSnake(DataStore.getRoles()));
+            await upsertSafe(TABLES.cashCounts, camelToSnake(DataStore.getCashCounts()));
+            await upsertSafe(TABLES.purchaseRequests, camelToSnake(DataStore.getPurchaseRequests()));
 
-            console.log('Migración completada exitosamente');
-            return true;
+            const localCounts = {
+                users: DataStore.getUsers().length,
+                products: DataStore.getProducts().length,
+                supplies: DataStore.getSupplies().length,
+                schedule: DataStore.getSchedule().length,
+                history: DataStore.getHistory().length,
+                sales: DataStore.getSales().length,
+                roles: DataStore.getRoles().length,
+                cash_counts: DataStore.getCashCounts().length,
+                purchase_requests: DataStore.getPurchaseRequests().length
+            };
+
+            if (failed.length > 0) {
+                console.warn('Migración completada con errores en:', failed, details);
+            } else {
+                console.log('Migración completada exitosamente. Filas locales:', localCounts);
+            }
+            return { ok: failed.length === 0, failed, details, localCounts };
         } catch (error) {
             console.error('Error en migración:', error);
-            return false;
+            return { ok: false, failed: ['error inesperado'], details: [String(error)], localCounts: null };
         }
     }
 };

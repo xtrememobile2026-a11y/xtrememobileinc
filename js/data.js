@@ -953,6 +953,18 @@ const DataStore = {
             });
         });
 
+        // Corrección de una sola vez: "Limpiar historial" pasa a ser exclusivo del
+        // Administrador de programación. Los roles ya guardados con esto en true (por
+        // haberse creado antes de este cambio) se corrigen automáticamente una vez.
+        if (!localStorage.getItem('xtrem_patch_clear_history_v1')) {
+            const adminRole = roles.find(r => r.id === 'role_administrador');
+            if (adminRole && adminRole.capabilities) {
+                adminRole.capabilities.clearHistory = false;
+                rolesChanged = true;
+            }
+            localStorage.setItem('xtrem_patch_clear_history_v1', '1');
+        }
+
         if (rolesChanged) await this.saveRoles(roles);
 
         const users = this.getUsers();
@@ -1077,6 +1089,13 @@ const DataStore = {
         return entry;
     },
 
+    async deleteCashCount(id) {
+        const list = this.getCashCounts().filter(c => c.id !== id);
+        this.saveCashCounts(list);
+        this.markRecentWrite('xtrem_cash_counts');
+        await this._syncToSupabase('deleteCashCountRemote', id);
+    },
+
     async _syncToSupabase(methodName, ...args) {
         if (typeof SupabaseService !== 'undefined' && SupabaseService.isConnected()) {
             try {
@@ -1089,6 +1108,11 @@ const DataStore = {
                 }
             } catch (e) {
                 console.error(`Supabase ${methodName} failed:`, e);
+                // Antes este error se ocultaba en silencio: el usuario veía "guardado
+                // exitosamente" aunque el cambio nunca llegara a Supabase. Ahora se avisa.
+                if (typeof App !== 'undefined' && App.showToast) {
+                    App.showToast('⚠️ El cambio se guardó en este dispositivo, pero no se pudo sincronizar con Supabase. Revisa tu conexión.', 'error');
+                }
             }
         }
     },
@@ -1104,11 +1128,14 @@ const DataStore = {
     },
 
 // Asegura que el usuario superadministrador "Angel" exista siempre.
-    // No es destructivo: NO elimina a otros usuarios. Solo garantiza que Angel
-    // esté presente con el rol correcto de "Administrador de programación".
+    // No es destructivo: NO elimina a otros usuarios. Solo garantiza que ese usuario
+    // conserve el ROL de "Administrador de programación" (para que nadie lo pueda
+    // degradar). El nombre, usuario y contraseña YA NO se fuerzan aquí: ahora Angel
+    // los administra él mismo desde "Mi Perfil", así que deben respetarse tal como
+    // él los deje.
     async ensureAngelUser() {
         let users = this.getUsers();
-        let angelExists = users.find(u => u.id === 'usr_angel') || users.find(u => u.username && u.username.toLowerCase() === 'angel');
+        let angelExists = users.find(u => u.id === 'usr_angel');
         if (!angelExists) {
             users.push({
                 id: 'usr_angel',
@@ -1117,15 +1144,12 @@ const DataStore = {
                 password: 'AXtreme2026@',
                 email: 'angel@xtremmobile.com',
                 role: 'Administrador de programación',
+                roleId: 'role_admin_prog',
                 createdAt: new Date().toISOString()
             });
         } else {
             angelExists.role = 'Administrador de programación';
-            angelExists.fullName = 'ANGEL A. COLON NEGRON';
-            angelExists.username = 'Angel';
-            if (angelExists.password !== 'AXtreme2026@') {
-                angelExists.password = 'AXtreme2026@';
-            }
+            angelExists.roleId = 'role_admin_prog';
         }
 
         await this.saveUsers(users);
@@ -1241,6 +1265,12 @@ const DataStore = {
 
     saveSales(sales) {
         localStorage.setItem('xtrem_sales', JSON.stringify(sales));
+    },
+
+    async clearSales() {
+        this.saveSales([]);
+        this.markRecentWrite('xtrem_sales');
+        await this._syncToSupabase('clearSales');
     },
 
     async addSale(sale) {

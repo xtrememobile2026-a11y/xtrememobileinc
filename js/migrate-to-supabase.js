@@ -22,10 +22,10 @@ async function migrateToSupabase() {
 
     const result = await SupabaseService.migrateAllData();
 
-    if (result) {
+    if (result.ok) {
         console.log('✅ Migración completada exitosamente. Los datos ahora están en Supabase.');
     } else {
-        console.error('❌ Error durante la migración. Revisa los mensajes anteriores.');
+        console.error('❌ Error durante la migración en estas tablas:', result.failed);
     }
 
     return result;

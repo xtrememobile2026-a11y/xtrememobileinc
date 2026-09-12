@@ -496,7 +496,7 @@ getStatusBadge(status) {
         document.getElementById('accCount').textContent = `${accesories.length} accesorios`;
 
         if (accesories.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-5">
+            tbody.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-5">
                 <i class="bi bi-tools fs-1 d-block mb-2"></i>No hay accesorios registrados
             </td></tr>`;
             return;
@@ -510,6 +510,7 @@ getStatusBadge(status) {
                 <td>${this.escapeHtml(p.color || '-')}</td>
                 <td class="fw-semibold">${parseFloat(p.price) > 0 ? 'Q' + parseFloat(p.price).toFixed(2) : '<span class="text-success">Gratis</span>'}</td>
 <td><span class="badge ${this.getStockColor(p.stock, p.minStock)}">${parseInt(p.stock)}</span></td>
+                <td><span class="badge bg-secondary">${parseInt(p.minStock || 0)}</span></td>
                 <td><small class="text-muted">${p.entryDate || '-'}</small></td>
                 <td>
                     <div class="d-flex gap-1">

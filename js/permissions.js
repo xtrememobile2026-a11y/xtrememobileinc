@@ -65,7 +65,7 @@ const Permissions = {
             },
             capabilities: {
                 manageUsers: true, changeRoles: true, editInventory: true, viewCost: true,
-                manageSales: true, manageCuadre: true, viewCuadreHistory: true, clearHistory: true, sqlEditor: false
+                manageSales: true, manageCuadre: true, viewCuadreHistory: true, clearHistory: false, sqlEditor: false
             }
         },
         {

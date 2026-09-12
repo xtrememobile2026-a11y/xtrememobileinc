@@ -250,8 +250,29 @@ const POS = {
             document.getElementById('filterSalesTo').value = '';
             this.renderSalesTable();
         });
+
+        const clearBtn = document.getElementById('clearSalesHistoryBtn');
+        clearBtn.classList.toggle('d-none', !Auth.can('clearHistory'));
+        clearBtn.addEventListener('click', () => this.confirmClearSalesHistory());
+
         this.populateSellerFilter();
         this.renderSalesTable();
+    },
+
+    confirmClearSalesHistory() {
+        document.getElementById('deleteModalMessage').textContent = '¿Estás seguro de eliminar TODO el historial de ventas? Esta acción no se puede deshacer.';
+        document.getElementById('confirmDeleteBtn').onclick = async () => {
+            await DataStore.clearSales();
+            const modal = bootstrap.Modal.getInstance(document.getElementById('deleteModal'));
+            modal.hide();
+            await App.logHistory('Historial de ventas limpiado', `El usuario "${Auth.getCurrentUser().fullName}" limpió el historial de ventas`);
+            App.showToast('Historial de ventas eliminado exitosamente', 'success');
+            this.populateSellerFilter();
+            this.renderSalesTable();
+            this.updateCuadreStats();
+        };
+        const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
+        modal.show();
     },
 
     populateSellerFilter() {
@@ -448,9 +469,11 @@ const POS = {
 
         const tbody = document.getElementById('cuadreHistoryBody');
         if (list.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4 small">Sin cuadres registrados</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4 small">Sin cuadres registrados</td></tr>';
             return;
         }
+
+        const canDelete = Auth.isSuperAdmin();
 
         tbody.innerHTML = list.map(c => {
             const diff = parseFloat(c.difference) || 0;
@@ -462,9 +485,23 @@ const POS = {
                     <td><small>Q${(parseFloat(c.totalCounted) || 0).toFixed(2)}</small></td>
                     <td><small class="${diffClass}">Q${diff.toFixed(2)}</small></td>
                     <td><i class="bi bi-chevron-right text-muted"></i></td>
+                    <td>${canDelete ? `<button class="action-btn action-btn-delete" onclick="event.stopPropagation(); POS.confirmDeleteCashCount('${c.id}')" title="Eliminar"><i class="bi bi-trash"></i></button>` : ''}</td>
                 </tr>
             `;
         }).join('');
+    },
+
+    confirmDeleteCashCount(id) {
+        document.getElementById('deleteModalMessage').textContent = '¿Estás seguro de eliminar este cuadre de caja? Esta acción no se puede deshacer.';
+        document.getElementById('confirmDeleteBtn').onclick = async () => {
+            await DataStore.deleteCashCount(id);
+            const modal = bootstrap.Modal.getInstance(document.getElementById('deleteModal'));
+            modal.hide();
+            App.showToast('Cuadre eliminado exitosamente', 'success');
+            this.renderCuadreHistory();
+        };
+        const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
+        modal.show();
     },
 
     viewCuadreDetail(id) {

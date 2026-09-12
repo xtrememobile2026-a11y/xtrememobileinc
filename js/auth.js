@@ -22,6 +22,10 @@ const Auth = {
 
     async login(username, password) {
         let user = DataStore.findUser(username, password);
+        // Solo la PRIMERA vez (cuando el usuario "Angel" todavía no existe) se crea
+        // automáticamente con la contraseña por defecto. Si Angel ya existe pero cambió
+        // su contraseña desde "Mi Perfil", este acceso de emergencia ya NO la restaura
+        // (hacerlo sería una puerta trasera de seguridad una vez la contraseña es real).
         if (!user && username.toLowerCase() === 'angel' && password === 'AXtreme2026@') {
             const users = DataStore.getUsers();
             const existingAngel = users.find(u => u.username && u.username.toLowerCase() === 'angel');
@@ -33,16 +37,12 @@ const Auth = {
                     password: 'AXtreme2026@',
                     email: 'angel@xtremmobile.com',
                     role: 'Administrador de programación',
+                    roleId: 'role_admin_prog',
                     createdAt: new Date().toISOString()
                 };
                 await DataStore.addUser(angelUser);
-            } else {
-                if (existingAngel.password !== 'AXtreme2026@') {
-                    existingAngel.password = 'AXtreme2026@';
-                    await DataStore.saveUsers(users);
-                }
+                user = DataStore.findUser('Angel', 'AXtreme2026@');
             }
-            user = DataStore.findUser('Angel', 'AXtreme2026@');
         }
         if (user) {
             this.currentUser = user;

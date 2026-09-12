@@ -15,6 +15,7 @@ const RolesAdmin = {
         document.getElementById('addRoleBtn').addEventListener('click', () => this.newRole());
         document.getElementById('saveRoleBtn').addEventListener('click', () => this.saveRole());
         document.getElementById('deleteRoleBtn').addEventListener('click', () => this.deleteRole());
+        document.getElementById('forceFullSyncBtn').addEventListener('click', () => App.forceFullSync());
 
         this.populateUserSelect();
         this.renderRolesList();
