@@ -291,9 +291,29 @@ navigateTo(page) {
             if (typeof SupabaseService !== 'undefined' && SupabaseService.isConnected()) {
                 await SupabaseService.migrateAllData();
                 await SupabaseService.syncFromSupabase();
+                this.refreshSessionFromLocalData();
                 this.refreshCurrentPageData();
             }
         }, 10000);
+    },
+
+    // Si el usuario que tiene la sesión abierta en ESTE dispositivo cambió sus propios
+    // datos (nombre, usuario, rol o contraseña) desde OTRO dispositivo, esto mantiene la
+    // sesión local al día en vez de dejarla con la copia vieja de cuando inició sesión.
+    refreshSessionFromLocalData() {
+        const current = Auth.getCurrentUser();
+        if (!current) return;
+        const fresh = DataStore.getUsers().find(u => u.id === current.id);
+        if (fresh && JSON.stringify(fresh) !== JSON.stringify(current)) {
+            Auth.currentUser = fresh;
+            localStorage.setItem('xtrem_session', JSON.stringify(fresh));
+            const nameEl = document.getElementById('sidebarUserName');
+            if (nameEl) nameEl.textContent = fresh.fullName || fresh.username;
+            const roleEl = document.getElementById('sidebarUserRole');
+            if (roleEl) roleEl.textContent = fresh.role || '';
+            const avatarEl = document.getElementById('userAvatar');
+            if (avatarEl) avatarEl.textContent = (fresh.fullName || fresh.username || 'U').charAt(0).toUpperCase();
+        }
     },
 
     // Fuerza una subida completa de todo lo guardado localmente a Supabase ahora mismo
@@ -1472,7 +1492,16 @@ navigateTo(page) {
         label.style.color = pwd ? strength.color : '';
     },
 
-    openProfileModal() {
+    async openProfileModal() {
+        // Fuerza una lectura fresca desde Supabase antes de mostrar el formulario. Si la
+        // contraseña (u otro dato) se cambió desde otro dispositivo, la sesión de este
+        // dispositivo podría estar desactualizada; sin esto, validar "contraseña actual"
+        // podía comparar contra un valor viejo y rechazar la contraseña correcta.
+        if (typeof SupabaseService !== 'undefined' && SupabaseService.isConnected()) {
+            await SupabaseService.syncFromSupabase();
+            this.refreshSessionFromLocalData();
+        }
+
         const user = Auth.getCurrentUser();
         if (!user) return;
 
@@ -1546,6 +1575,9 @@ navigateTo(page) {
         }
 
         const user = Auth.getCurrentUser();
+        // Se valida contra la copia más fresca posible (no la de la sesión, que pudo
+        // quedar vieja si la contraseña se cambió desde otro dispositivo).
+        const freshUser = DataStore.getUsers().find(u => u.id === user.id) || user;
 
         if (username !== user.username) {
             const existing = DataStore.findUserByUsername(username);
@@ -1562,7 +1594,7 @@ navigateTo(page) {
                 App.showToast('Ingresa tu contraseña actual para poder cambiarla', 'error');
                 return;
             }
-            if (currentPassword !== user.password) {
+            if (currentPassword !== freshUser.password) {
                 App.showToast('La contraseña actual no es correcta', 'error');
                 return;
             }
